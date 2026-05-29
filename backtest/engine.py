@@ -3,6 +3,7 @@ import pandas as pd
 from optimization.switcher import compute_weights
 
 INITIAL_CAPITAL = 1.0
+TRANSACTION_COST = 0.0002  # 10 bps per unit of turnover
 
 def align_data(weights: pd.DataFrame, returns: pd.DataFrame):
     common_dates = weights.index.intersection(returns.index)
@@ -14,18 +15,24 @@ def simulate(weights: pd.DataFrame, returns: pd.DataFrame) -> pd.DataFrame:
     weights_shifted = weights.shift(1).dropna()
     returns_aligned = returns.loc[weights_shifted.index]
     
+    # Daily portfolio returns
     port_returns = (weights_shifted.values * returns_aligned.values).sum(axis=1)
+    
+    # Transaction costs — charged on days where weights changed
+    weight_changes = weights_shifted.diff().abs().sum(axis=1)
+    costs = weight_changes * TRANSACTION_COST
+    
+    port_returns = port_returns - costs.values
     port_returns = pd.Series(port_returns, index=weights_shifted.index, name="portfolio_return")
     
+    # Equity curve
     equity = (1 + port_returns).cumprod() * INITIAL_CAPITAL
     equity.name = "equity"
     
-    result = pd.DataFrame({
+    return pd.DataFrame({
         "portfolio_return": port_returns,
         "equity": equity
     })
-    
-    return result
 
 def run() -> pd.DataFrame:
     regimes_df = pd.read_parquet("data/regimes.parquet")
