@@ -17,11 +17,11 @@ Algorithmic portfolio optimizer that detects market regimes using a Hidden Marko
 
 | Metric                | Portfolio | SPY Buy & Hold |
 |-----------------------|-----------|----------------|
-| Annualized Return     | 5.44%     | 8.51%          |
+| Annualized Return     | 5.35%     | 8.51%          |
 | Annualized Volatility | 8.71%     | 19.14%         |
-| Sharpe Ratio          | 0.17      | 0.24           |
-| Max Drawdown          | -20.49%   | -59.58%        |
-| Calmar Ratio          | 0.27      | 0.14           |
+| Sharpe Ratio          | 0.15      | 0.24           |
+| Max Drawdown          | -20.33%   | -59.58%        |
+| Calmar Ratio          | 0.26      | 0.14           |
 
 The strategy accepts lower absolute returns in exchange for significantly reduced drawdown and volatility. Max drawdown is less than a third of SPY's   during the 2008 financial crisis the portfolio stayed above water while SPY lost nearly 60%.
 
@@ -91,8 +91,9 @@ python main.py --no-charts
 
 ## Limitations
 
-- Transaction costs and slippage not modeled
-- HMM trained on full history rather than rolling walk-forward retraining
+- HMM trained on full history rather than rolling walk-forward retraining (known next step)
+- Transaction costs modeled at 2bps per unit of turnover (realistic for liquid ETFs)
+- Weight transitions smoothed over 5 days to reduce turnover spikes
 - Regime switching frequency may be too high for practical implementation
 - Limited asset universe (5 ETFs)
 
