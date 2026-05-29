@@ -79,6 +79,6 @@ def load_features() -> pd.DataFrame:
 
 
 if __name__ == "__main__":
-    from fetch import fetch_prices
+    from data.fetch import fetch_prices
     prices = fetch_prices()
     process_and_save(prices)
