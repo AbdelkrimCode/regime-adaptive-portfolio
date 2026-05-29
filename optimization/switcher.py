@@ -4,7 +4,7 @@ from optimization.mean_var import max_sharpe
 from optimization.risk_parity import risk_parity
 from optimization.min_variance import min_variance
 
-SMOOTHING_DAYS = 5  # transition over 5 days on regime change
+SMOOTHING_DAYS = 5  
 
 OPTIMIZER_MAP = {
     "Bull": max_sharpe,
@@ -23,7 +23,7 @@ def compute_weights(regimes: pd.Series, returns: pd.DataFrame) -> pd.DataFrame:
     current_regime = None
     current_weights = None
     target_weights = None
-    days_since_switch = SMOOTHING_DAYS  # start as fully transitioned
+    days_since_switch = SMOOTHING_DAYS  
     
     for date, regime in regimes.items():
         if regime != current_regime:

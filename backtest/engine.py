@@ -3,7 +3,7 @@ import pandas as pd
 from optimization.switcher import compute_weights
 
 INITIAL_CAPITAL = 1.0
-TRANSACTION_COST = 0.0002  # 10 bps per unit of turnover
+TRANSACTION_COST = 0.0002  
 
 def align_data(weights: pd.DataFrame, returns: pd.DataFrame):
     common_dates = weights.index.intersection(returns.index)

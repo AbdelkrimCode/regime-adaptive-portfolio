@@ -12,7 +12,6 @@ def run() -> dict:
     returns = pd.read_parquet("data/processed/returns.parquet")
     backtest = pd.read_parquet("data/backtest_results.parquet")
     
-    # Align dates — only compare over same period as backtest
     common = returns.index.intersection(backtest.index)
     spy_returns = returns.loc[common, "SPY"]
     spy_equity = (1 + spy_returns).cumprod()

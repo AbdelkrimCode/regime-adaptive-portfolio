@@ -14,12 +14,11 @@ PROCESSED_DIR = os.path.join(os.path.dirname(__file__), "processed")
 RETURNS_PATH  = os.path.join(PROCESSED_DIR, "returns.parquet")
 FEATURES_PATH = os.path.join(PROCESSED_DIR, "features.parquet")
 
-VOL_WINDOW  = 21   # ~1 month
-CORR_WINDOW = 63   # ~1 quarter
+VOL_WINDOW  = 21   
+CORR_WINDOW = 63   
 
 
 def compute_returns(prices: pd.DataFrame) -> pd.DataFrame:
-    """Compute daily log returns from adjusted close prices."""
     returns = np.log(prices / prices.shift(1)).dropna()
     return returns
 
@@ -56,7 +55,6 @@ def compute_features(returns: pd.DataFrame) -> pd.DataFrame:
 
 
 def process_and_save(prices: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Run the full pipeline and save to parquet."""
     os.makedirs(PROCESSED_DIR, exist_ok=True)
 
     returns  = compute_returns(prices)
