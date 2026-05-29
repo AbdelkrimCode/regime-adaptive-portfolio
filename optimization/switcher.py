@@ -4,6 +4,8 @@ from optimization.mean_var import max_sharpe
 from optimization.risk_parity import risk_parity
 from optimization.min_variance import min_variance
 
+SMOOTHING_DAYS = 5  # transition over 5 days on regime change
+
 OPTIMIZER_MAP = {
     "Bull": max_sharpe,
     "Bear": risk_parity,
@@ -20,24 +22,39 @@ def compute_weights(regimes: pd.Series, returns: pd.DataFrame) -> pd.DataFrame:
     
     current_regime = None
     current_weights = None
+    target_weights = None
+    days_since_switch = SMOOTHING_DAYS  # start as fully transitioned
     
     for date, regime in regimes.items():
         if regime != current_regime:
+            target_weights = None
             available_returns = returns.loc[:date]
             
             if len(available_returns) < 126:
-                current_weights = np.ones(len(assets)) / len(assets)
+                target_weights = np.ones(len(assets)) / len(assets)
             else:
-                current_weights = get_weights(regime, available_returns)
-                current_weights = np.clip(current_weights, 0, None)
-                current_weights = current_weights / np.sum(current_weights)
+                target_weights = get_weights(regime, available_returns)
+                target_weights = np.clip(target_weights, 0, None)
+                target_weights = target_weights / np.sum(target_weights)
                 
-                # Fallback if solver returned degenerate solution
-                if np.max(current_weights) > 0.99:
-                    current_weights = np.ones(len(assets)) / len(assets)
-    
+                if np.max(target_weights) > 0.99:
+                    target_weights = np.ones(len(assets)) / len(assets)
+            
+            if current_weights is None:
+                current_weights = target_weights
+            
+            days_since_switch = 0
             current_regime = regime
+
+        if days_since_switch < SMOOTHING_DAYS:
+            alpha = (days_since_switch + 1) / SMOOTHING_DAYS
+            blended = (1 - alpha) * current_weights + alpha * target_weights
+            weights.loc[date] = blended
+            if days_since_switch == SMOOTHING_DAYS - 1:
+                current_weights = target_weights
+        else:
+            weights.loc[date] = current_weights
         
-        weights.loc[date] = current_weights
+        days_since_switch += 1
     
     return weights
