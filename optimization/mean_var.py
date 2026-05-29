@@ -1,13 +1,14 @@
 import numpy as np
 import pandas as pd
 import cvxpy as cp
+from sklearn.covariance import LedoitWolf
 
 RISK_FREE_RATE = 0.04
 TRADING_DAYS = 252
 
 def estimate_inputs(returns: pd.DataFrame):
     mu = returns.mean().values * TRADING_DAYS
-    sigma = returns.cov().values * TRADING_DAYS
+    sigma = LedoitWolf().fit(returns).covariance_ * TRADING_DAYS
     return mu, sigma
 
 def max_sharpe(returns: pd.DataFrame) -> np.ndarray:

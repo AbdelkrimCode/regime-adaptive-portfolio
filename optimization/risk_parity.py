@@ -4,8 +4,10 @@ import cvxpy as cp
 
 TRADING_DAYS = 252
 
+from sklearn.covariance import LedoitWolf
+
 def estimate_covariance(returns: pd.DataFrame) -> np.ndarray:
-    return returns.cov().values * TRADING_DAYS
+    return LedoitWolf().fit(returns).covariance_ * TRADING_DAYS
 
 def risk_parity(returns: pd.DataFrame) -> np.ndarray:
     sigma = estimate_covariance(returns)
