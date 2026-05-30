@@ -29,6 +29,13 @@ The portfolio outperforms SPY on risk-adjusted return (Sharpe 0.227 vs 0.218) wh
 
 ![charts](data/charts.png)
 
+## Exploration Notebook
+
+An interactive walkthrough of the three core components — regime detection, optimizer comparison, and backtest results.
+
+> GitHub's notebook renderer may fail on this file. View via [nbviewer](https://nbviewer.org/github/AbdelkrimCode/regime-adaptive-portfolio/blob/main/notebooks/exploration.ipynb) or clone the repo and open locally with `jupyter notebook`.
+
+
 ## Architecture
 
 ```
