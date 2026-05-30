@@ -2,7 +2,7 @@ import os
 import yfinance as yf
 import pandas as pd
 
-TICKERS  = ["SPY", "TLT", "GLD", "EFA", "IEF"]
+TICKERS = ["SPY", "TLT", "GLD", "EFA", "IEF", "QQQ", "LQD", "VNQ"]
 START    = "2005-01-01"
 END      = "2024-12-31"
 RAW_DIR  = os.path.join(os.path.dirname(__file__), "raw")
