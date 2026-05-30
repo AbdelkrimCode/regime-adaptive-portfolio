@@ -1,0 +1,6 @@
+# Data files
+data/raw/
+data/processed/
+data/regimes.parquet
+data/backtest_results.parquet
+models/hmm_model.joblib
