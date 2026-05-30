@@ -14,13 +14,13 @@ def print_metrics(results: dict):
         spy_val  = results["spy"][metric]
         print(f"{metric:<25} {port_val:>12} {spy_val:>12}")
 
-def main(retrain=False, charts=True):
+def main(retrain=False, charts=True, walk_forward=False):
     print("=" * 50)
     print("  Regime Adaptive Portfolio")
     print("=" * 50)
 
     print("\n[1/4] Running HMM regime detection...")
-    regimes = run_hmm(retrain=retrain)
+    regimes = run_hmm(retrain=retrain, walk_forward=walk_forward)
     print(f"      Regimes found: {regimes['regime'].value_counts().to_dict()}")
 
     print("\n[2/4] Running backtest...")
@@ -44,6 +44,8 @@ if __name__ == "__main__":
                         help="Retrain HMM from scratch")
     parser.add_argument("--no-charts", action="store_true",
                         help="Skip chart generation")
+    parser.add_argument("--walk-forward", action="store_true",
+                    help="Use walk-forward HMM retraining")
     args = parser.parse_args()
 
-    main(retrain=args.retrain, charts=not args.no_charts)
+    main(retrain=args.retrain, charts=not args.no_charts, walk_forward=args.walk_forward)
