@@ -10,12 +10,15 @@ from config import load_config
 CFG = load_config()
 
 def print_metrics(results: dict):
-    print(f"\n{'Metric':<25} {'Portfolio':>12} {'SPY':>12}")
-    print("-" * 50)
+    print(f"\n{'Metric':<25} {'Portfolio':>12} {'SPY':>12} {'EqualWeight':>12} {'60/40':>12} {'Momentum':>12}")
+    print("-" * 80)
     for metric in results["portfolio"]:
-        port_val = results["portfolio"][metric]
-        spy_val  = results["spy"][metric]
-        print(f"{metric:<25} {port_val:>12} {spy_val:>12}")
+        print(f"{metric:<25} "
+              f"{results['portfolio'][metric]:>12} "
+              f"{results['spy'][metric]:>12} "
+              f"{results['equal_weight'][metric]:>12} "
+              f"{results['sixty_forty'][metric]:>12} "
+              f"{results['momentum'][metric]:>12}")
 
 def main(retrain: bool = False, charts: bool = True, walk_forward: bool = False) -> None:
     print("=" * 50)
