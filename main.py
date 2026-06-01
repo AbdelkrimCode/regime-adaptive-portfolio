@@ -5,6 +5,9 @@ from backtest.engine import run as run_backtest
 from backtest.benchmark import run as run_benchmark
 from backtest.metrics import compute_all
 from visualization.charts import run as run_charts
+from config import load_config
+
+CFG = load_config()
 
 def print_metrics(results: dict):
     print(f"\n{'Metric':<25} {'Portfolio':>12} {'SPY':>12}")
@@ -14,7 +17,7 @@ def print_metrics(results: dict):
         spy_val  = results["spy"][metric]
         print(f"{metric:<25} {port_val:>12} {spy_val:>12}")
 
-def main(retrain=False, charts=True, walk_forward=False):
+def main(retrain: bool = False, charts: bool = True, walk_forward: bool = False) -> None:
     print("=" * 50)
     print("  Regime Adaptive Portfolio")
     print("=" * 50)
@@ -24,7 +27,7 @@ def main(retrain=False, charts=True, walk_forward=False):
     print(f"      Regimes found: {regimes['regime'].value_counts().to_dict()}")
 
     print("\n[2/4] Running backtest...")
-    backtest = run_backtest()
+    backtest = run_backtest(regimes_df=regimes)
     print(f"      Days simulated: {len(backtest)}")
 
     print("\n[3/4] Computing metrics...")
@@ -34,7 +37,7 @@ def main(retrain=False, charts=True, walk_forward=False):
     if charts:
         print("\n[4/4] Generating charts...")
         run_charts()
-        print("      Saved to data/charts.png")
+        print(f"      Saved to {CFG['paths']['charts']}")
 
     print("\nDone.")
 
@@ -45,7 +48,7 @@ if __name__ == "__main__":
     parser.add_argument("--no-charts", action="store_true",
                         help="Skip chart generation")
     parser.add_argument("--walk-forward", action="store_true",
-                    help="Use walk-forward HMM retraining")
+                        help="Use walk-forward HMM retraining")
     args = parser.parse_args()
 
     main(retrain=args.retrain, charts=not args.no_charts, walk_forward=args.walk_forward)
