@@ -5,6 +5,7 @@ import joblib
 import os
 from sklearn.preprocessing import StandardScaler
 from config import load_config
+import matplotlib.pyplot as plt
 
 CFG = load_config()
 
@@ -46,6 +47,97 @@ def fit_hmm(features: np.ndarray) -> tuple[GaussianHMM, StandardScaler]:
         best_model = last_model
 
     return best_model, scaler
+
+def fit_hmm_with_n(features_scaled: np.ndarray, n_states: int) -> tuple[GaussianHMM | None, None]:
+    best_model = None
+    best_score = -np.inf
+    last_model = None
+
+    for i in range(CFG["hmm"]["n_init"]):
+        try:
+            model = GaussianHMM(
+                n_components=n_states,
+                covariance_type="full",
+                n_iter=CFG["hmm"]["n_iter"],
+                random_state=CFG["hmm"]["random_state"] + i
+            )
+            model.fit(features_scaled)
+            last_model = model
+            score = model.score(features_scaled)
+            if score > best_score:
+                best_score = score
+                best_model = model
+        except Exception:
+            continue
+
+    if best_model is None:
+        best_model = last_model
+
+    return best_model, None
+
+def count_params(n_states: int, n_features: int) -> int:
+    transition = n_states * (n_states - 1)
+    means = n_states * n_features
+    covariances = n_states * n_features * (n_features + 1) // 2
+    return transition + means + covariances
+
+
+def compute_aic_bic(model: GaussianHMM, features_scaled: np.ndarray, n_features: int) -> tuple[float, float]:
+    n_samples = len(features_scaled)
+    n_states = model.n_components
+    log_likelihood = model.score(features_scaled) * n_samples
+    n_params = count_params(n_states, n_features)
+    aic = -2 * log_likelihood + 2 * n_params
+    bic = -2 * log_likelihood + np.log(n_samples) * n_params
+    return aic, bic
+
+def select_n_states(features: np.ndarray, candidate_states: list[int] | None = None) -> pd.DataFrame:
+    if candidate_states is None:
+        candidate_states = [2, 3, 4, 5]
+
+    split = int(len(features) * 0.8)
+    train_features = features[:split]
+    test_features = features[split:]
+
+    scaler = StandardScaler()
+    train_scaled = scaler.fit_transform(train_features)
+    test_scaled = scaler.transform(test_features)
+    n_features = features.shape[1]
+
+    records = []
+    for n in candidate_states:
+            print(f"  Fitting HMM with {n} states...")
+            model, _ = fit_hmm_with_n(train_scaled, n)
+            if model is None:
+                continue
+            aic, bic = compute_aic_bic(model, test_scaled, n_features)
+            records.append({"n_states": n, "aic": round(aic, 2), "bic": round(bic, 2)})
+
+    return pd.DataFrame(records).set_index("n_states")
+
+def plot_state_selection(scores_df: pd.DataFrame, output_path: str | None = None) -> None:
+    if output_path is None:
+        output_path = "data/state_selection.png"
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
+
+    ax1.plot(scores_df.index, scores_df["aic"], marker="o", color="steelblue")
+    ax1.set_title("AIC by Number of States")
+    ax1.set_xlabel("n_states")
+    ax1.set_ylabel("AIC")
+    ax1.axvline(scores_df["aic"].idxmin(), color="steelblue", linestyle="--", alpha=0.5)
+
+    ax2.plot(scores_df.index, scores_df["bic"], marker="o", color="darkorange")
+    ax2.set_title("BIC by Number of States")
+    ax2.set_xlabel("n_states")
+    ax2.set_ylabel("BIC")
+    ax2.axvline(scores_df["bic"].idxmin(), color="darkorange", linestyle="--", alpha=0.5)
+
+    fig.suptitle("HMM State Selection — AIC / BIC", fontsize=13)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150)
+    plt.close()
+    print(f"      Saved to {output_path}")
 
 def label_states(model: GaussianHMM, feature_df: pd.DataFrame) -> dict:
     state_means = model.means_[:, 0]
@@ -143,3 +235,10 @@ if __name__ == "__main__":
     result = run(retrain=True)
     print(result["regime"].value_counts())
     print(result.groupby("regime")["spy_return"].mean())
+
+    print("\nRunning BIC/AIC state selection...")
+    df = load_features()
+    features = df[["spy_return", "spy_vol", "mean_corr"]].values
+    scores = select_n_states(features)
+    print(scores)
+    plot_state_selection(scores)
