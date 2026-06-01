@@ -37,8 +37,7 @@ def run(regimes_df: pd.DataFrame | None = None) -> pd.DataFrame:
 
     returns = pd.read_parquet(CFG["paths"]["returns"])
 
-    regimes = regimes_df["regime"]
-    weights = compute_weights(regimes, returns)
+    weights = compute_weights(regimes_df, returns)
 
     result = simulate(weights, returns)
     result.to_parquet(CFG["paths"]["backtest_results"])
