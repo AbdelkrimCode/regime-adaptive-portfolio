@@ -44,6 +44,24 @@ def run(regimes_df: pd.DataFrame | None = None) -> pd.DataFrame:
 
     return result
 
+def run_period(
+    start: str,
+    end: str,
+    regimes_df: pd.DataFrame | None = None
+) -> pd.DataFrame:
+    if regimes_df is None:
+        regimes_df = pd.read_parquet(CFG["paths"]["regimes"])
+
+    returns = pd.read_parquet(CFG["paths"]["returns"])
+
+    regimes_slice = regimes_df.loc[start:end]
+    returns_slice = returns.loc[start:end]
+
+    weights = compute_weights(regimes_slice, returns_slice)
+    result = simulate(weights, returns_slice)
+
+    return result
+
 if __name__ == "__main__":
     result = run()
     print(result.head(10))
