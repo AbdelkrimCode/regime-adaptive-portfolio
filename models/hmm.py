@@ -154,9 +154,15 @@ def predict_regimes(model: GaussianHMM, features: np.ndarray,
     state_labels = label_states(model, feature_df)
     features_scaled = scaler.transform(features)
     hidden_states = model.predict(features_scaled)
+    posteriors = model.predict_proba(features_scaled)
+
     df = feature_df.copy()
     df["state"] = hidden_states
     df["regime"] = df["state"].map(state_labels)
+
+    for state_idx, label in state_labels.items():
+        df[f"p_{label.lower()}"] = posteriors[:, state_idx]
+
     return df
 
 def walk_forward_regimes(df: pd.DataFrame) -> pd.DataFrame:
@@ -190,9 +196,14 @@ def walk_forward_regimes(df: pd.DataFrame) -> pd.DataFrame:
         features_scaled = scaler.transform(test_features)
         hidden_states = model.predict(features_scaled)
 
+        posteriors = model.predict_proba(features_scaled)
+
         period_df = test_df.copy()
         period_df["state"] = hidden_states
         period_df["regime"] = period_df["state"].map(state_labels)
+
+        for state_idx, label in state_labels.items():
+            period_df[f"p_{label.lower()}"] = posteriors[:, state_idx]
 
         all_regimes.append(period_df)
         print(f"Fitted {retrain_date.date()} → test through {next_date.date()}")
