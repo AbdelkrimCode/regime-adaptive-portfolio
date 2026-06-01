@@ -4,19 +4,15 @@ from hmmlearn.hmm import GaussianHMM
 import joblib
 import os
 from sklearn.preprocessing import StandardScaler
+from config import load_config
 
-RETRAIN_FREQUENCY = "QS"  
-MIN_TRAIN_DAYS = 252      
-FEATURES_PATH = "data/processed/features.parquet"
-MODEL_PATH = "models/hmm_model.joblib"
-OUTPUT_PATH = "data/regimes.parquet"
+CFG = load_config()
 
-N_STATES = 3
-N_ITER = 2000
-N_INIT = 10
-RANDOM_STATE = 42
 
-def load_features(path=FEATURES_PATH):
+
+def load_features(path: str | None = None) -> pd.DataFrame:
+    if path is None:
+        path = CFG["paths"]["features"]
     df = pd.read_parquet(path)
     df = df.dropna()
     return df
@@ -29,13 +25,13 @@ def fit_hmm(features: np.ndarray) -> tuple[GaussianHMM, StandardScaler]:
     best_score = -np.inf
     last_model = None
 
-    for i in range(N_INIT):
+    for i in range(CFG["hmm"]["n_init"]):
         try:
             model = GaussianHMM(
-                n_components=N_STATES,
+                n_components=CFG["hmm"]["n_states"],
                 covariance_type="full",
-                n_iter=N_ITER,
-                random_state=RANDOM_STATE + i
+                n_iter=CFG["hmm"]["n_iter"],
+                random_state=CFG["hmm"]["random_state"] + i
             )
             model.fit(features_scaled)
             last_model = model
@@ -77,7 +73,7 @@ def walk_forward_regimes(df: pd.DataFrame) -> pd.DataFrame:
     retrain_dates = pd.date_range(
         start=df.index.min(),
         end=df.index.max(),
-        freq=RETRAIN_FREQUENCY
+        freq=CFG["hmm"]["retrain_frequency"]
     )
 
     all_regimes = []
@@ -88,7 +84,7 @@ def walk_forward_regimes(df: pd.DataFrame) -> pd.DataFrame:
         train_df = df.loc[:retrain_date]
         test_df = df.loc[retrain_date:next_date].iloc[1:]
 
-        if len(train_df) < MIN_TRAIN_DAYS or len(test_df) == 0:
+        if len(train_df) < CFG["hmm"]["min_train_days"] or len(test_df) == 0:
             continue
 
         train_features = train_df[features_cols].values
@@ -112,15 +108,19 @@ def walk_forward_regimes(df: pd.DataFrame) -> pd.DataFrame:
     return pd.concat(all_regimes)
 
 
-def save_model(model: GaussianHMM, scaler: StandardScaler, path=MODEL_PATH):
+def save_model(model: GaussianHMM, scaler: StandardScaler, path: str | None = None) -> None:
+    if path is None:
+        path = CFG["paths"]["model"]
     os.makedirs(os.path.dirname(path), exist_ok=True)
     joblib.dump({"model": model, "scaler": scaler}, path)
 
-def load_model(path=MODEL_PATH) -> tuple[GaussianHMM, StandardScaler]:
+def load_model(path: str | None = None) -> tuple[GaussianHMM, StandardScaler]:
+    if path is None:
+        path = CFG["paths"]["model"]
     data = joblib.load(path)
     return data["model"], data["scaler"]
 
-def run(retrain=False, walk_forward=False) -> pd.DataFrame:
+def run(retrain : bool = False, walk_forward : bool = False) -> pd.DataFrame:
     df = load_features()
     features = df[["spy_return", "spy_vol", "mean_corr"]].values
 
@@ -128,15 +128,15 @@ def run(retrain=False, walk_forward=False) -> pd.DataFrame:
         print("Running walk-forward retraining...")
         result = walk_forward_regimes(df)
     else:
-        if retrain or not os.path.exists(MODEL_PATH):
+        if retrain or not os.path.exists(CFG["paths"]["model"]):
             model, scaler = fit_hmm(features)
             save_model(model, scaler)
         else:
             model, scaler = load_model()
         result = predict_regimes(model, features, df, scaler)
 
-    os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
-    result.to_parquet(OUTPUT_PATH)
+    os.makedirs(os.path.dirname(CFG["paths"]["regimes"]), exist_ok=True)
+    result.to_parquet(CFG["paths"]["regimes"])
     return result
 
 if __name__ == "__main__":
