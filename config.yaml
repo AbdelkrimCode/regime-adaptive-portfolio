@@ -1,0 +1,22 @@
+hmm:
+  n_states: 3
+  n_iter: 2000
+  n_init: 10
+  random_state: 42
+  min_train_days: 252
+  retrain_frequency: "QS"
+
+backtest:
+  initial_capital: 1.0
+  transaction_cost: 0.0002
+
+optimizer:
+  smoothing_days: 5
+
+paths:
+  features: "data/processed/features.parquet"
+  returns: "data/processed/returns.parquet"
+  model: "models/hmm_model.joblib"
+  regimes: "data/regimes.parquet"
+  backtest_results: "data/backtest_results.parquet"
+  charts: "data/charts.png"
