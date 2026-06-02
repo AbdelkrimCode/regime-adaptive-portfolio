@@ -249,7 +249,9 @@ if __name__ == "__main__":
 
     print("\nRunning BIC/AIC state selection...")
     df = load_features()
-    features = df[["spy_return", "spy_vol", "mean_corr"]].values
+    train_end = CFG["evaluation"]["train_end"]
+    df_train = df.loc[:train_end]
+    features = df_train[["spy_return", "spy_vol", "mean_corr"]].values
     scores = select_n_states(features)
     print(scores)
     plot_state_selection(scores)
