@@ -3,12 +3,14 @@ import pandas as pd
 from optimization.mean_var import max_sharpe
 from optimization.risk_parity import risk_parity
 from optimization.min_variance import min_variance
+from optimization.crash import crash_weights
 
 
 OPTIMIZER_MAP = {
     "Bull": max_sharpe,
     "Bear": risk_parity,
-    "Sideways": min_variance
+    "Sideways": min_variance,
+    "Crash": crash_weights,
 }
 
 def get_weights(regime: str, returns: pd.DataFrame) -> np.ndarray:
@@ -18,7 +20,7 @@ def get_weights(regime: str, returns: pd.DataFrame) -> np.ndarray:
 def compute_weights(regimes_df: pd.DataFrame, returns: pd.DataFrame) -> pd.DataFrame:
     assets = returns.columns.tolist()
     weights = pd.DataFrame(index=regimes_df.index, columns=assets, dtype=float)
-    cached_weights = {"Bull": None, "Bear": None, "Sideways": None}
+    cached_weights = {"Bull": None, "Bear": None, "Sideways": None, "Crash": None}
     current_regime = None
 
     for date, row in regimes_df.iterrows():
@@ -39,7 +41,7 @@ def compute_weights(regimes_df: pd.DataFrame, returns: pd.DataFrame) -> pd.DataF
             current_regime = regime
 
         blended = np.zeros(len(assets))
-        for label in ["Bull", "Bear", "Sideways"]:
+        for label in ["Bull", "Bear", "Sideways", "Crash"]:
             p = row[f"p_{label.lower()}"]
             if cached_weights[label] is None:
                 continue

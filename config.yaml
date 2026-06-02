@@ -1,5 +1,5 @@
 hmm:
-  n_states: 3
+  n_states: 4
   n_iter: 2000
   n_init: 10
   random_state: 42
