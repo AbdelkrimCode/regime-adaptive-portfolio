@@ -6,6 +6,7 @@ from backtest.metrics import compute_all, average_turnover
 from backtest.benchmark import run as run_benchmark
 from visualization.charts import run as run_charts
 from config import load_config
+from data.risk_free import fetch_risk_free
 
 CFG = load_config()
 
@@ -51,7 +52,7 @@ def main(retrain: bool = False, charts: bool = True, walk_forward: bool = True) 
     returns = pd.read_parquet(CFG["paths"]["returns"])
     spy_test = returns.loc[test_start:, "SPY"]
     spy_test_equity = (1 + spy_test).cumprod()
-
+    
     test_metrics = compute_all(test_result["portfolio_return"], test_result["equity"])
     spy_test_metrics = compute_all(spy_test, spy_test_equity)
 

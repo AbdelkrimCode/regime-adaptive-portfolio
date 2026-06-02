@@ -1,6 +1,15 @@
 import pandas as pd
 import numpy as np
+from data.risk_free import fetch_risk_free
 from backtest.metrics import compute_all
+
+
+TRANSACTION_COST = 0.0002
+
+def apply_transaction_costs(weights: pd.DataFrame, returns: pd.Series) -> pd.Series:
+    weight_changes = weights.diff().abs().sum(axis=1)
+    costs = weight_changes * TRANSACTION_COST
+    return returns - costs
 
 def get_spy_equity(returns: pd.DataFrame) -> pd.Series:
     spy_returns = returns["SPY"]
@@ -23,6 +32,7 @@ def get_equal_weight_equity(returns: pd.DataFrame) -> tuple[pd.Series, pd.Series
     aligned_returns = returns.loc[weights.index]
     port_returns = (weights.values * aligned_returns.values).sum(axis=1)
     port_returns = pd.Series(port_returns, index=weights.index, name="ew_return")
+    port_returns = apply_transaction_costs(weights, port_returns)
     equity = (1 + port_returns).cumprod()
     equity.name = "ew_equity"
     return port_returns, equity
@@ -44,6 +54,7 @@ def get_sixty_forty_equity(returns: pd.DataFrame) -> tuple[pd.Series, pd.Series]
     aligned_returns = returns.loc[weights.index]
     port_returns = (weights.values * aligned_returns.values).sum(axis=1)
     port_returns = pd.Series(port_returns, index=weights.index, name="sixty_forty_return")
+    port_returns = apply_transaction_costs(weights, port_returns)
     equity = (1 + port_returns).cumprod()
     equity.name = "sixty_forty_equity"
     return port_returns, equity
@@ -73,6 +84,7 @@ def get_momentum_equity(returns: pd.DataFrame, lookback: int = 252, top_n: int =
     aligned_returns = returns.loc[weights.index]
     port_returns = (weights.values * aligned_returns.values).sum(axis=1)
     port_returns = pd.Series(port_returns, index=weights.index, name="momentum_return")
+    port_returns = apply_transaction_costs(weights, port_returns)
     equity = (1 + port_returns).cumprod()
     equity.name = "momentum_equity"
     return port_returns, equity
@@ -83,6 +95,7 @@ def run() -> dict:
 
     returns = pd.read_parquet(CFG["paths"]["returns"])
     backtest = pd.read_parquet(CFG["paths"]["backtest_results"])
+    rf = fetch_risk_free()
 
     common = returns.index.intersection(backtest.index)
     returns = returns.loc[common]
@@ -95,11 +108,11 @@ def run() -> dict:
     mom_returns, mom_equity = get_momentum_equity(returns)
 
     return {
-        "portfolio":    compute_all(backtest["portfolio_return"], backtest["equity"]),
-        "spy":          compute_all(spy_returns, spy_equity),
-        "equal_weight": compute_all(ew_returns, ew_equity),
-        "sixty_forty":  compute_all(sf_returns, sf_equity),
-        "momentum":     compute_all(mom_returns, mom_equity),
+        "portfolio":    compute_all(backtest["portfolio_return"], backtest["equity"], rf=rf),
+        "spy":          compute_all(spy_returns, spy_equity, rf=rf),
+        "equal_weight": compute_all(ew_returns, ew_equity, rf=rf),
+        "sixty_forty":  compute_all(sf_returns, sf_equity, rf=rf),
+        "momentum":     compute_all(mom_returns, mom_equity, rf=rf),
     }
 
 if __name__ == "__main__":
