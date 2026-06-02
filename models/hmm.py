@@ -142,11 +142,9 @@ def plot_state_selection(scores_df: pd.DataFrame, output_path: str | None = None
 def label_states(model: GaussianHMM, feature_df: pd.DataFrame) -> dict:
     state_means = model.means_[:, 0]
     ranking = np.argsort(state_means)
-    return {
-        ranking[0]: "Bear",
-        ranking[1]: "Sideways",
-        ranking[2]: "Bull"
-    }
+    labels = ["Crash", "Bear", "Sideways", "Bull"]
+    n = model.n_components
+    return {ranking[i]: labels[4 - n + i] for i in range(n)}
 
 def predict_regimes(model: GaussianHMM, features: np.ndarray,
                     feature_df: pd.DataFrame,
