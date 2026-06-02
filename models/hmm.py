@@ -154,13 +154,13 @@ def predict_regimes(model: GaussianHMM, features: np.ndarray,
     hidden_states = model.predict(features_scaled)
     posteriors = model.predict_proba(features_scaled)
 
-    df = feature_df.copy()
     df["state"] = hidden_states
     df["regime"] = df["state"].map(state_labels)
 
     for state_idx, label in state_labels.items():
-        df[f"p_{label.lower()}"] = posteriors[:, state_idx]
+            df[f"p_{label.lower()}"] = posteriors[:, state_idx]
 
+    df["is_retrain_date"] = False
     return df
 
 def walk_forward_regimes(df: pd.DataFrame) -> pd.DataFrame:
@@ -206,7 +206,10 @@ def walk_forward_regimes(df: pd.DataFrame) -> pd.DataFrame:
         all_regimes.append(period_df)
         print(f"Fitted {retrain_date.date()} → test through {next_date.date()}")
 
-    return pd.concat(all_regimes)
+        result = pd.concat(all_regimes)
+        result["is_retrain_date"] = False
+        result.loc[result.index.isin(retrain_dates), "is_retrain_date"] = True
+    return result
 
 
 def save_model(model: GaussianHMM, scaler: StandardScaler, path: str | None = None) -> None:
