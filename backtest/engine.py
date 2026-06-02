@@ -31,7 +31,7 @@ def simulate(weights: pd.DataFrame, returns: pd.DataFrame) -> pd.DataFrame:
         "equity": equity
     })
 
-def run(regimes_df: pd.DataFrame | None = None) -> pd.DataFrame:
+def run(regimes_df: pd.DataFrame | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     if regimes_df is None:
         regimes_df = pd.read_parquet(CFG["paths"]["regimes"])
 
@@ -42,13 +42,13 @@ def run(regimes_df: pd.DataFrame | None = None) -> pd.DataFrame:
     result = simulate(weights, returns)
     result.to_parquet(CFG["paths"]["backtest_results"])
 
-    return result
+    return result, weights
 
 def run_period(
     start: str,
     end: str,
     regimes_df: pd.DataFrame | None = None
-) -> pd.DataFrame:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     if regimes_df is None:
         regimes_df = pd.read_parquet(CFG["paths"]["regimes"])
 
@@ -60,7 +60,7 @@ def run_period(
     weights = compute_weights(regimes_slice, returns_slice)
     result = simulate(weights, returns_slice)
 
-    return result
+    return result, weights
 
 if __name__ == "__main__":
     result = run()

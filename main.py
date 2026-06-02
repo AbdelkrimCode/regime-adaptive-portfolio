@@ -2,9 +2,8 @@ import argparse
 import pandas as pd
 from models.hmm import run as run_hmm
 from backtest.engine import run as run_backtest, run_period
-from backtest.metrics import compute_all
+from backtest.metrics import compute_all, average_turnover
 from backtest.benchmark import run as run_benchmark
-from backtest.metrics import compute_all
 from visualization.charts import run as run_charts
 from config import load_config
 
@@ -21,7 +20,7 @@ def print_metrics(results: dict):
               f"{results['sixty_forty'][metric]:>12} "
               f"{results['momentum'][metric]:>12}")
 
-def main(retrain: bool = False, charts: bool = True, walk_forward: bool = False) -> None:
+def main(retrain: bool = False, charts: bool = True, walk_forward: bool = True) -> None:
     print("=" * 50)
     print("  Regime Adaptive Portfolio")
     print("=" * 50)
@@ -31,17 +30,20 @@ def main(retrain: bool = False, charts: bool = True, walk_forward: bool = False)
     print(f"      Regimes found: {regimes['regime'].value_counts().to_dict()}")
 
     print("\n[2/4] Running backtest...")
-    backtest = run_backtest(regimes_df=regimes)
+    backtest, weights = run_backtest(regimes_df=regimes)
     print(f"      Days simulated: {len(backtest)}")
 
     print("\n[3/4] Computing metrics...")
     results = run_benchmark()
     print_metrics(results)
+    turnover = average_turnover(weights)
+    print(f"\n  Average daily turnover: {turnover:.4f} ({turnover * 100:.2f}% of portfolio per day)")
+    print(f"  Implied annual transaction cost: {turnover * 0.0002 * 252 * 100:.4f}%")
 
     print("\n--- Held-out test period (2019–2024) ---")
     test_start = CFG["evaluation"]["test_start"]
     test_end = CFG["evaluation"]["train_end"]
-    test_result = run_period(
+    test_result, test_weights = run_period(
         start=test_start,
         end="2024-12-31",
         regimes_df=regimes
@@ -71,8 +73,8 @@ if __name__ == "__main__":
                         help="Retrain HMM from scratch")
     parser.add_argument("--no-charts", action="store_true",
                         help="Skip chart generation")
-    parser.add_argument("--walk-forward", action="store_true",
-                        help="Use walk-forward HMM retraining")
+    parser.add_argument("--no-walk-forward", action="store_true",
+                        help="Disable walk-forward HMM retraining (use static model)")
     args = parser.parse_args()
 
-    main(retrain=args.retrain, charts=not args.no_charts, walk_forward=args.walk_forward)
+    main(retrain=args.retrain, charts=not args.no_charts, walk_forward=not args.no_walk_forward)

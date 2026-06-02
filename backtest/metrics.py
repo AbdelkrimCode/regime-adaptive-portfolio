@@ -27,6 +27,10 @@ def calmar_ratio(equity: pd.Series, returns: pd.Series) -> float:
     mdd = abs(max_drawdown(equity))
     return ann_ret / mdd if mdd != 0 else np.nan
 
+def average_turnover(weights: pd.DataFrame) -> float:
+    daily_turnover = weights.diff().abs().sum(axis=1)
+    return round(daily_turnover.mean(), 4)
+
 def compute_all(returns: pd.Series, equity: pd.Series) -> dict:
     return {
         "annualized_return":     round(annualized_return(equity), 4),
