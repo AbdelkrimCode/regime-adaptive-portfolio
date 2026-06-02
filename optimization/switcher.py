@@ -31,13 +31,17 @@ def compute_weights(regimes_df: pd.DataFrame, returns: pd.DataFrame) -> pd.DataF
             weights.loc[date] = np.ones(len(assets)) / len(assets)
             continue
 
-        if regime != current_regime:
-            raw = get_weights(regime, available_returns)
-            raw = np.clip(raw, 0, None)
-            raw = raw / np.sum(raw)
-            if np.max(raw) > 0.99:
-                raw = np.ones(len(assets)) / len(assets)
-            cached_weights[regime] = raw
+        is_retrain = row.get("is_retrain_date", False)
+
+        if regime != current_regime or is_retrain:
+            for label in ["Bull", "Bear", "Sideways", "Crash"]:
+                if label == regime or is_retrain:
+                    raw = get_weights(label, available_returns)
+                    raw = np.clip(raw, 0, None)
+                    raw = raw / np.sum(raw)
+                    if np.max(raw) > 0.99:
+                        raw = np.ones(len(assets)) / len(assets)
+                    cached_weights[label] = raw
             current_regime = regime
 
         blended = np.zeros(len(assets))
