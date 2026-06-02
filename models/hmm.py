@@ -146,6 +146,24 @@ def label_states(model: GaussianHMM, feature_df: pd.DataFrame) -> dict:
     n = model.n_components
     return {ranking[i]: labels[4 - n + i] for i in range(n)}
 
+def get_transition_matrix(model: GaussianHMM, state_labels: dict) -> pd.DataFrame:
+    n = model.n_components
+    labels = [state_labels[i] for i in range(n)]
+    transmat = pd.DataFrame(
+        model.transmat_,
+        index=labels,
+        columns=labels
+    )
+    return transmat
+
+def get_regime_durations(transmat: pd.DataFrame) -> pd.Series:
+    avg_durations = 1 / (1 - pd.Series({
+        regime: transmat.loc[regime, regime]
+        for regime in transmat.index
+    }))
+    avg_durations.name = "avg_duration_days"
+    return avg_durations.round(1)
+
 def predict_regimes(model: GaussianHMM, features: np.ndarray,
                     feature_df: pd.DataFrame,
                     scaler: StandardScaler) -> pd.DataFrame:
@@ -154,11 +172,12 @@ def predict_regimes(model: GaussianHMM, features: np.ndarray,
     hidden_states = model.predict(features_scaled)
     posteriors = model.predict_proba(features_scaled)
 
+    df = feature_df.copy()
     df["state"] = hidden_states
     df["regime"] = df["state"].map(state_labels)
 
     for state_idx, label in state_labels.items():
-            df[f"p_{label.lower()}"] = posteriors[:, state_idx]
+        df[f"p_{label.lower()}"] = posteriors[:, state_idx]
 
     df["is_retrain_date"] = False
     return df
@@ -256,3 +275,11 @@ if __name__ == "__main__":
     scores = select_n_states(features)
     print(scores)
     plot_state_selection(scores)
+    print("\nTransition Matrix:")
+    model, scaler = load_model()
+    df = load_features()
+    state_labels = label_states(model, df)
+    transmat = get_transition_matrix(model, state_labels)
+    print(transmat.round(4))
+    print("\nAverage Regime Durations:")
+    print(get_regime_durations(transmat))
