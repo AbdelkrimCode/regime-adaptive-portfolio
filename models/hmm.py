@@ -79,7 +79,8 @@ def count_params(n_states: int, n_features: int) -> int:
     transition = n_states * (n_states - 1)
     means = n_states * n_features
     covariances = n_states * n_features * (n_features + 1) // 2
-    return transition + means + covariances
+    startprob = n_states - 1
+    return transition + means + covariances + startprob
 
 
 def compute_aic_bic(model: GaussianHMM, features_scaled: np.ndarray, n_features: int) -> tuple[float, float]:
@@ -225,9 +226,9 @@ def walk_forward_regimes(df: pd.DataFrame) -> pd.DataFrame:
         all_regimes.append(period_df)
         print(f"Fitted {retrain_date.date()} → test through {next_date.date()}")
 
-        result = pd.concat(all_regimes)
-        result["is_retrain_date"] = False
-        result.loc[result.index.isin(retrain_dates), "is_retrain_date"] = True
+    result = pd.concat(all_regimes)
+    result["is_retrain_date"] = False
+    result.loc[result.index.isin(retrain_dates), "is_retrain_date"] = True
     return result
 
 
