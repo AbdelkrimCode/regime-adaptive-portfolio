@@ -19,7 +19,10 @@ def sharpe_ratio(returns: pd.Series, rf: pd.Series | None = None) -> float:
     else:
         excess = returns
 
-    return excess.mean() / excess.std() * np.sqrt(TRADING_DAYS)
+    std = excess.std()
+    if std == 0:
+        return 0.0
+    return excess.mean() / std * np.sqrt(TRADING_DAYS)
 
 def max_drawdown(equity: pd.Series) -> float:
     peak = equity.cummax()
