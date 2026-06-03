@@ -14,7 +14,7 @@ from backtest.metrics import (
 TRADING_DAYS = 252
 
 
-# --- annualized_return ---
+
 
 def test_annualized_return_flat():
     equity = pd.Series([1.0, 1.0, 1.0, 1.0, 1.0])
@@ -29,7 +29,7 @@ def test_annualized_return_known():
     assert annualized_return(equity) == pytest.approx(expected, rel=1e-4)
 
 
-# --- annualized_volatility ---
+
 
 def test_annualized_volatility_zero():
     returns = pd.Series([0.0] * 100)
@@ -43,10 +43,10 @@ def test_annualized_volatility_known():
     assert annualized_volatility(returns) == pytest.approx(expected, rel=1e-6)
 
 
-# --- sharpe_ratio ---
+
 
 def test_sharpe_ratio_zero_excess():
-    # If returns equal risk-free rate every day, Sharpe should be 0
+
     rf_daily = 0.0001
     returns = pd.Series([rf_daily] * 252)
     rf = pd.Series([rf_daily] * 252)
@@ -54,13 +54,13 @@ def test_sharpe_ratio_zero_excess():
 
 
 def test_sharpe_ratio_no_rf():
-    # Without rf, uses raw returns
+
     returns = pd.Series([0.001] * 252)
     result = sharpe_ratio(returns, rf=None)
     assert result > 0
 
 
-# --- max_drawdown ---
+
 
 def test_max_drawdown_no_drawdown():
     equity = pd.Series([1.0, 1.1, 1.2, 1.3, 1.4])
@@ -68,7 +68,7 @@ def test_max_drawdown_no_drawdown():
 
 
 def test_max_drawdown_known():
-    # Peak at 2.0, trough at 1.0 → drawdown = -0.5
+
     equity = pd.Series([1.0, 2.0, 1.0, 1.5])
     assert max_drawdown(equity) == pytest.approx(-0.5, rel=1e-6)
 
@@ -78,7 +78,7 @@ def test_max_drawdown_negative():
     assert result < 0
 
 
-# --- average_turnover ---
+
 
 def test_average_turnover_no_change():
     weights = pd.DataFrame(
@@ -95,7 +95,7 @@ def test_average_turnover_known():
     assert result == pytest.approx(0.4 / 3, abs=1e-3)
 
 
-# --- compute_all ---
+
 
 def test_compute_all_keys():
     returns = pd.Series(np.random.normal(0.0005, 0.01, 500))

@@ -12,8 +12,6 @@ from models.hmm import (
 from backtest.bootstrap import block_resample
 
 
-# --- count_parameters ---
-
 def test_count_params_known():
     # n_states=2, n_features=3
     # transition = 2*(2-1) = 2
@@ -42,8 +40,6 @@ def test_count_params_increases_with_states():
 def test_count_params_increases_with_features():
     assert count_params(3, 4) > count_params(3, 3)
 
-
-# --- block_resample ---
 
 def test_block_resample_output_length():
     rng = np.random.default_rng(42)
@@ -77,8 +73,6 @@ def test_block_resample_different_seed():
     assert not r1.equals(r2)
 
 
-# --- label_states ---
-
 def test_label_states_four_states():
     model = MagicMock()
     model.means_ = np.array([
@@ -107,8 +101,6 @@ def test_label_states_ordering():
     assert labels[ranking[0]] == "Crash"
     assert labels[ranking[3]] == "Bull"
 
-
-# --- get_transition_matrix ---
 
 def test_get_transition_matrix_shape():
     model = MagicMock()
@@ -140,7 +132,7 @@ def test_get_transition_matrix_rows_sum_to_one():
         assert row_sum == pytest.approx(1.0, abs=1e-6)
 
 
-# --- get_regime_durations ---
+
 
 def test_get_regime_durations_known():
     transmat = pd.DataFrame(
