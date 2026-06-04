@@ -42,6 +42,34 @@ def _fit_hmm_core(features_scaled: np.ndarray, n_states: int) -> GaussianHMM | N
 
     return best_model if best_model is not None else last_model
 
+def forward_filter(model: GaussianHMM, features_scaled: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    from scipy.stats import multivariate_normal
+
+    n_samples = len(features_scaled)
+    n_states = model.n_components
+
+    log_emission = np.zeros((n_samples, n_states))
+    for i in range(n_states):
+        log_emission[:, i] = multivariate_normal.logpdf(
+            features_scaled,
+            mean=model.means_[i],
+            cov=model.covars_[i]
+        )
+
+    alpha = np.zeros((n_samples, n_states))
+    alpha[0] = model.startprob_ * np.exp(log_emission[0])
+    alpha[0] /= alpha[0].sum()
+
+    for t in range(1, n_samples):
+        alpha[t] = alpha[t - 1] @ model.transmat_ * np.exp(log_emission[t])
+        total = alpha[t].sum()
+        if total > 0:
+            alpha[t] /= total
+        else:
+            alpha[t] = np.ones(n_states) / n_states
+
+    hidden_states = np.argmax(alpha, axis=1)
+    return hidden_states, alpha
 
 def fit_hmm(features: np.ndarray) -> tuple[GaussianHMM | None, StandardScaler]:
     scaler = StandardScaler()
@@ -78,8 +106,7 @@ def _fit_fold(
     test_features = test_df[features_cols].values
     state_labels = label_states(model, train_df)
     features_scaled = scaler.transform(test_features)
-    hidden_states = model.predict(features_scaled)
-    posteriors = model.predict_proba(features_scaled)
+    hidden_states, posteriors = forward_filter(model, features_scaled)
 
     period_df = test_df.copy()
     period_df["state"] = hidden_states
@@ -204,8 +231,7 @@ def predict_regimes(model: GaussianHMM, features: np.ndarray,
                     scaler: StandardScaler) -> pd.DataFrame:
     state_labels = label_states(model, feature_df)
     features_scaled = scaler.transform(features)
-    hidden_states = model.predict(features_scaled)
-    posteriors = model.predict_proba(features_scaled)
+    hidden_states, posteriors = forward_filter(model, features_scaled)
 
     df = feature_df.copy()
     df["state"] = hidden_states
