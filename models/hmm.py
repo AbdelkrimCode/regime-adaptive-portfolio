@@ -18,37 +18,7 @@ def load_features(path: str | None = None) -> pd.DataFrame:
     df = df.dropna()
     return df
 
-def fit_hmm(features: np.ndarray) -> tuple[GaussianHMM, StandardScaler]:
-    scaler = StandardScaler()
-    features_scaled = scaler.fit_transform(features)
-
-    best_model = None
-    best_score = -np.inf
-    last_model = None
-
-    for i in range(CFG["hmm"]["n_init"]):
-        try:
-            model = GaussianHMM(
-                n_components=CFG["hmm"]["n_states"],
-                covariance_type="full",
-                n_iter=CFG["hmm"]["n_iter"],
-                random_state=CFG["hmm"]["random_state"] + i
-            )
-            model.fit(features_scaled)
-            last_model = model
-            score = model.score(features_scaled)
-            if score > best_score:
-                best_score = score
-                best_model = model
-        except Exception:
-            continue
-
-    if best_model is None:
-        best_model = last_model
-
-    return best_model, scaler
-
-def fit_hmm_with_n(features_scaled: np.ndarray, n_states: int) -> tuple[GaussianHMM | None, None]:
+def _fit_hmm_core(features_scaled: np.ndarray, n_states: int) -> GaussianHMM | None:
     best_model = None
     best_score = -np.inf
     last_model = None
@@ -70,10 +40,19 @@ def fit_hmm_with_n(features_scaled: np.ndarray, n_states: int) -> tuple[Gaussian
         except Exception:
             continue
 
-    if best_model is None:
-        best_model = last_model
+    return best_model if best_model is not None else last_model
 
-    return best_model, None
+
+def fit_hmm(features: np.ndarray) -> tuple[GaussianHMM | None, StandardScaler]:
+    scaler = StandardScaler()
+    features_scaled = scaler.fit_transform(features)
+    model = _fit_hmm_core(features_scaled, CFG["hmm"]["n_states"])
+    return model, scaler
+
+
+def fit_hmm_with_n(features_scaled: np.ndarray, n_states: int) -> tuple[GaussianHMM | None, None]:
+    model = _fit_hmm_core(features_scaled, n_states)
+    return model, None
 
 def fit_hmm_with_states(features: np.ndarray, n_states: int) -> tuple[GaussianHMM | None, StandardScaler]:
     scaler = StandardScaler()
@@ -149,7 +128,7 @@ def select_n_states(features: np.ndarray, candidate_states: list[int] | None = N
             model, _ = fit_hmm_with_n(train_scaled, n)
             if model is None:
                 continue
-            aic, bic = compute_aic_bic(model, test_scaled, n_features)
+            aic, bic = compute_aic_bic(model, train_scaled, n_features)
             records.append({"n_states": n, "aic": round(aic, 2), "bic": round(bic, 2)})
 
     return pd.DataFrame(records).set_index("n_states")
