@@ -75,6 +75,44 @@ def fit_hmm_with_n(features_scaled: np.ndarray, n_states: int) -> tuple[Gaussian
 
     return best_model, None
 
+def fit_hmm_with_states(features: np.ndarray, n_states: int) -> tuple[GaussianHMM | None, StandardScaler]:
+    scaler = StandardScaler()
+    features_scaled = scaler.fit_transform(features)
+    model, _ = fit_hmm_with_n(features_scaled, n_states)
+    return model, scaler
+
+def _fit_fold(
+    train_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    retrain_date: pd.Timestamp,
+    next_date: pd.Timestamp,
+    features_cols: list[str]
+) -> tuple[pd.DataFrame, dict] | None:
+    train_features = train_df[features_cols].values
+    best_n = select_n_states(train_features, candidate_states=[2, 3, 4])["bic"].idxmin()
+    print(f"  Selected n_states={best_n} for fold {retrain_date.date()}")
+
+    model, scaler = fit_hmm_with_states(train_features, best_n)
+    if model is None:
+        return None
+
+    test_features = test_df[features_cols].values
+    state_labels = label_states(model, train_df)
+    features_scaled = scaler.transform(test_features)
+    hidden_states = model.predict(features_scaled)
+    posteriors = model.predict_proba(features_scaled)
+
+    period_df = test_df.copy()
+    period_df["state"] = hidden_states
+    period_df["regime"] = period_df["state"].map(state_labels)
+
+    for state_idx, label in state_labels.items():
+        period_df[f"p_{label.lower()}"] = posteriors[:, state_idx]
+
+    n_states_entry = {"date": retrain_date, "n_states": int(best_n)}
+    print(f"Fitted {retrain_date.date()} → test through {next_date.date()}")
+    return period_df, n_states_entry
+
 def count_params(n_states: int, n_features: int) -> int:
     transition = n_states * (n_states - 1)
     means = n_states * n_features
@@ -144,6 +182,17 @@ def label_states(model: GaussianHMM, feature_df: pd.DataFrame) -> dict:
     state_means = model.means_[:, 0]
     ranking = np.argsort(state_means)
     n = len(ranking)
+    if n == 2:
+        return {
+            ranking[0]: "Bear",
+            ranking[1]: "Bull"
+        }
+    if n == 3:
+        return {
+            ranking[0]: "Bear",
+            ranking[1]: "Sideways",
+            ranking[2]: "Bull"
+        }
     if n == 4:
         return {
             ranking[0]: "Crash",
@@ -151,11 +200,7 @@ def label_states(model: GaussianHMM, feature_df: pd.DataFrame) -> dict:
             ranking[2]: "Sideways",
             ranking[3]: "Bull"
         }
-    return {
-        ranking[0]: "Bear",
-        ranking[1]: "Sideways",
-        ranking[2]: "Bull"
-    }
+    return {ranking[i]: f"State{i}" for i in range(n)}
 
 def get_transition_matrix(model: GaussianHMM, state_labels: dict) -> pd.DataFrame:
     n = model.n_components
@@ -194,6 +239,8 @@ def predict_regimes(model: GaussianHMM, features: np.ndarray,
     return df
 
 def walk_forward_regimes(df: pd.DataFrame) -> pd.DataFrame:
+    from joblib import Parallel, delayed
+
     features_cols = ["spy_return", "spy_vol", "mean_corr"]
 
     retrain_dates = pd.date_range(
@@ -202,43 +249,39 @@ def walk_forward_regimes(df: pd.DataFrame) -> pd.DataFrame:
         freq=CFG["hmm"]["retrain_frequency"]
     )
 
-    all_regimes = []
-
+    folds = []
     for i, retrain_date in enumerate(retrain_dates):
         next_date = retrain_dates[i + 1] if i + 1 < len(retrain_dates) else df.index.max()
-
         train_df = df.loc[:retrain_date]
         test_df = df.loc[retrain_date:next_date].iloc[1:]
-
         if len(train_df) < CFG["hmm"]["min_train_days"] or len(test_df) == 0:
             continue
+        folds.append((train_df, test_df, retrain_date, next_date))
 
-        train_features = train_df[features_cols].values
-        model, scaler = fit_hmm(train_features)
+    results = Parallel(n_jobs=CFG["hmm"]["n_jobs"])(
+        delayed(_fit_fold)(train_df, test_df, retrain_date, next_date, features_cols)
+        for train_df, test_df, retrain_date, next_date in folds
+    )
 
-        if model is None:
+    all_regimes = []
+    n_states_log = []
+    for result in results:
+        if result is None:
             continue
-
-        test_features = test_df[features_cols].values
-        state_labels = label_states(model, train_df)
-        features_scaled = scaler.transform(test_features)
-        hidden_states = model.predict(features_scaled)
-
-        posteriors = model.predict_proba(features_scaled)
-
-        period_df = test_df.copy()
-        period_df["state"] = hidden_states
-        period_df["regime"] = period_df["state"].map(state_labels)
-
-        for state_idx, label in state_labels.items():
-            period_df[f"p_{label.lower()}"] = posteriors[:, state_idx]
-
+        period_df, n_states_entry = result
         all_regimes.append(period_df)
-        print(f"Fitted {retrain_date.date()} → test through {next_date.date()}")
+        n_states_log.append(n_states_entry)
 
     result = pd.concat(all_regimes)
     result["is_retrain_date"] = False
     result.loc[result.index.isin(retrain_dates), "is_retrain_date"] = True
+
+    n_states_df = pd.DataFrame(n_states_log).set_index("date")
+    n_states_df.index = pd.DatetimeIndex(n_states_df.index)
+    result["n_states_used"] = result.index.map(
+        lambda d: n_states_df["n_states"].asof(d) if not n_states_df.empty else CFG["hmm"]["n_states"]
+    )
+
     return result
 
 
