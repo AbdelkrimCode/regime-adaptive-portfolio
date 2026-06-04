@@ -1,11 +1,4 @@
 
-"""
-Transforms raw price data into features used by the HMM regime detector:
-  - daily log returns
-  - rolling 21-day realised volatility (annualised) 
-  - rolling 63-day mean pairwise correlation method (average of all pairwise correlations between assets)
-"""
-
 import os
 import numpy as np
 import pandas as pd
@@ -23,7 +16,7 @@ def compute_returns(prices: pd.DataFrame) -> pd.DataFrame:
     return returns
 
 
-def compute_features(returns: pd.DataFrame) -> pd.DataFrame:
+def compute_features(returns: pd.DataFrame, prices: pd.DataFrame, vol_window: int = VOL_WINDOW, corr_window: int = CORR_WINDOW) -> pd.DataFrame:
     """
     Build feature matrix for HMM fitting.
 
@@ -34,10 +27,10 @@ def compute_features(returns: pd.DataFrame) -> pd.DataFrame:
     """
     spy = returns["SPY"]
 
-    spy_vol = spy.rolling(VOL_WINDOW).std() * np.sqrt(252)
+    spy_vol = spy.rolling(vol_window).std() * np.sqrt(252)
 
     mean_corr = (
-        returns.rolling(CORR_WINDOW)
+        returns.rolling(corr_window)
         .corr()
         .groupby(level=0)
         .apply(lambda m: (m.values.sum() - m.shape[0]) / (m.shape[0] * (m.shape[0] - 1)))

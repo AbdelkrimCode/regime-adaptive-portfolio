@@ -3,6 +3,7 @@ data/raw/
 data/processed/
 data/regimes.parquet
 data/backtest_results.parquet
+data/sensitivity_results.csv
 models/hmm_model.joblib
 .vscode/
 __pycache__/
