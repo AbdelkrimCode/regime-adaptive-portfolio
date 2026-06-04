@@ -5,6 +5,7 @@ hmm:
   random_state: 42
   min_train_days: 252
   retrain_frequency: "QS"
+  n_jobs: 8
 
 backtest:
   initial_capital: 1.0
