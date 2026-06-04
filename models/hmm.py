@@ -42,6 +42,34 @@ def _fit_hmm_core(features_scaled: np.ndarray, n_states: int) -> GaussianHMM | N
 
     return best_model if best_model is not None else last_model
 
+def forward_filter(model: GaussianHMM, features_scaled: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    from scipy.stats import multivariate_normal
+
+    n_samples = len(features_scaled)
+    n_states = model.n_components
+
+    log_emission = np.zeros((n_samples, n_states))
+    for i in range(n_states):
+        log_emission[:, i] = multivariate_normal.logpdf(
+            features_scaled,
+            mean=model.means_[i],
+            cov=model.covars_[i]
+        )
+
+    alpha = np.zeros((n_samples, n_states))
+    alpha[0] = model.startprob_ * np.exp(log_emission[0])
+    alpha[0] /= alpha[0].sum()
+
+    for t in range(1, n_samples):
+        alpha[t] = alpha[t - 1] @ model.transmat_ * np.exp(log_emission[t])
+        total = alpha[t].sum()
+        if total > 0:
+            alpha[t] /= total
+        else:
+            alpha[t] = np.ones(n_states) / n_states
+
+    hidden_states = np.argmax(alpha, axis=1)
+    return hidden_states, alpha
 
 def fit_hmm(features: np.ndarray) -> tuple[GaussianHMM | None, StandardScaler]:
     scaler = StandardScaler()
@@ -76,10 +104,9 @@ def _fit_fold(
         return None
 
     test_features = test_df[features_cols].values
-    state_labels = label_states(model, train_df)
+    state_labels = label_states(model)
     features_scaled = scaler.transform(test_features)
-    hidden_states = model.predict(features_scaled)
-    posteriors = model.predict_proba(features_scaled)
+    hidden_states, posteriors = forward_filter(model, features_scaled)
 
     period_df = test_df.copy()
     period_df["state"] = hidden_states
@@ -113,23 +140,18 @@ def select_n_states(features: np.ndarray, candidate_states: list[int] | None = N
     if candidate_states is None:
         candidate_states = [2, 3, 4, 5]
 
-    split = int(len(features) * 0.8)
-    train_features = features[:split]
-    test_features = features[split:]
-
     scaler = StandardScaler()
-    train_scaled = scaler.fit_transform(train_features)
-    test_scaled = scaler.transform(test_features)
+    features_scaled = scaler.fit_transform(features)
     n_features = features.shape[1]
 
     records = []
     for n in candidate_states:
-            print(f"  Fitting HMM with {n} states...")
-            model, _ = fit_hmm_with_n(train_scaled, n)
-            if model is None:
-                continue
-            aic, bic = compute_aic_bic(model, train_scaled, n_features)
-            records.append({"n_states": n, "aic": round(aic, 2), "bic": round(bic, 2)})
+        print(f"  Fitting HMM with {n} states...")
+        model, _ = fit_hmm_with_n(features_scaled, n)
+        if model is None:
+            continue
+        aic, bic = compute_aic_bic(model, features_scaled, n_features)
+        records.append({"n_states": n, "aic": round(aic, 2), "bic": round(bic, 2)})
 
     return pd.DataFrame(records).set_index("n_states")
 
@@ -157,7 +179,7 @@ def plot_state_selection(scores_df: pd.DataFrame, output_path: str | None = None
     plt.close()
     print(f"      Saved to {output_path}")
 
-def label_states(model: GaussianHMM, feature_df: pd.DataFrame) -> dict:
+def label_states(model: GaussianHMM) -> dict:
     state_means = model.means_[:, 0]
     ranking = np.argsort(state_means)
     n = len(ranking)
@@ -202,10 +224,9 @@ def get_regime_durations(transmat: pd.DataFrame) -> pd.Series:
 def predict_regimes(model: GaussianHMM, features: np.ndarray,
                     feature_df: pd.DataFrame,
                     scaler: StandardScaler) -> pd.DataFrame:
-    state_labels = label_states(model, feature_df)
+    state_labels = label_states(model)
     features_scaled = scaler.transform(features)
-    hidden_states = model.predict(features_scaled)
-    posteriors = model.predict_proba(features_scaled)
+    hidden_states, posteriors = forward_filter(model, features_scaled)
 
     df = feature_df.copy()
     df["state"] = hidden_states
@@ -311,7 +332,7 @@ if __name__ == "__main__":
     print("\nTransition Matrix:")
     model, scaler = load_model()
     df = load_features()
-    state_labels = label_states(model, df)
+    state_labels = label_states(model)
     transmat = get_transition_matrix(model, state_labels)
     print(transmat.round(4))
     print("\nAverage Regime Durations:")

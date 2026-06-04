@@ -57,7 +57,7 @@ def run_period(
     regimes_slice = regimes_df.loc[start:end]
     returns_slice = returns.loc[start:end]
 
-    weights = compute_weights(regimes_slice, returns_slice)
+    weights = compute_weights(regimes_slice, returns)
     result = simulate(weights, returns_slice)
 
     return result, weights
