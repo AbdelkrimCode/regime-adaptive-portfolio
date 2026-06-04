@@ -25,7 +25,7 @@ def run_single(vol_window: int, corr_window: int) -> dict:
 
     prices = fetch_prices()
     returns = compute_returns(prices)
-    features = compute_features(returns, prices, vol_window=vol_window, corr_window=corr_window)
+    features = compute_features(returns, vol_window=vol_window, corr_window=corr_window)
 
     features_path = CFG["paths"]["features"]
     returns_path = CFG["paths"]["returns"]

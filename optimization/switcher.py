@@ -4,6 +4,9 @@ from optimization.mean_var import max_sharpe
 from optimization.risk_parity import risk_parity
 from optimization.min_variance import min_variance
 from optimization.crash import crash_weights
+from config import load_config
+from data.risk_free import fetch_risk_free
+CFG = load_config()
 
 
 OPTIMIZER_MAP = {
@@ -13,12 +16,15 @@ OPTIMIZER_MAP = {
     "Crash": crash_weights,
 }
 
+min_history = CFG["hmm"]["min_train_days"] // 2
+
 def get_weights(regime: str, returns: pd.DataFrame) -> np.ndarray:
     optimizer = OPTIMIZER_MAP[regime]
     return optimizer(returns)
 
 def compute_weights(regimes_df: pd.DataFrame, returns: pd.DataFrame) -> pd.DataFrame:
     assets = returns.columns.tolist()
+    rf_series = fetch_risk_free()
     weights = pd.DataFrame(index=regimes_df.index, columns=assets, dtype=float)
     cached_weights = {"Bull": None, "Bear": None, "Sideways": None, "Crash": None}
     current_regime = None
@@ -27,21 +33,24 @@ def compute_weights(regimes_df: pd.DataFrame, returns: pd.DataFrame) -> pd.DataF
         regime = row["regime"]
         available_returns = returns.loc[:date]
 
-        if len(available_returns) < 126:
+        if len(available_returns) < min_history:
             weights.loc[date] = np.ones(len(assets)) / len(assets)
             continue
 
         is_retrain = row.get("is_retrain_date", False)
 
         if regime != current_regime or is_retrain:
+            current_rf = float(rf_series.reindex([date], method="ffill").iloc[0])
             for label in ["Bull", "Bear", "Sideways", "Crash"]:
-                if label == regime or is_retrain:
+                if label == "Bull":
+                    raw = max_sharpe(available_returns, rf=current_rf)
+                else:
                     raw = get_weights(label, available_returns)
-                    raw = np.clip(raw, 0, None)
-                    raw = raw / np.sum(raw)
-                    if np.max(raw) > 0.99:
+                raw = np.clip(raw, 0, None)
+                raw = raw / np.sum(raw)
+                if np.max(raw) > 0.99:
                         raw = np.ones(len(assets)) / len(assets)
-                    cached_weights[label] = raw
+                cached_weights[label] = raw
             current_regime = regime
 
         blended = np.zeros(len(assets))
