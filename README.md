@@ -96,7 +96,7 @@ The portfolio leads all benchmarks on Sharpe. The risk-parity benchmark is the m
 |---|---|---|
 | Annualized Return | 8.29% | 14.86% |
 | Annualized Volatility | 9.51% | 19.91% |
-| Sharpe Ratio | **0.905** | 0.797 |
+| Sharpe Ratio | **0.655** | 0.797 |
 | Max Drawdown | -25.26% | -35.75% |
 | Calmar Ratio | 0.328 | 0.416 |
 
