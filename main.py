@@ -141,7 +141,8 @@ def main(retrain: bool = False, charts: bool = True, walk_forward: bool = True) 
     spy_test = returns.loc[test_start:, "SPY"]
     spy_test_equity = (1 + spy_test).cumprod()
     
-    test_metrics = compute_all(test_result["portfolio_return"], test_result["equity"])
+    rf = fetch_risk_free()
+    test_metrics = compute_all(test_result["portfolio_return"], test_result["equity"], rf=rf)
     spy_test_metrics = compute_all(spy_test, spy_test_equity)
 
     print(f"\n{'Metric':<25} {'Portfolio':>12} {'SPY':>12}")
