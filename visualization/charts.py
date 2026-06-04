@@ -6,7 +6,8 @@ import matplotlib.patches as mpatches
 REGIME_COLORS = {
     "Bull":     "#2ecc71",
     "Bear":     "#e74c3c",
-    "Sideways": "#f39c12"
+    "Sideways": "#f39c12",
+    "Crash":    "#8e44ad"
 }
 
 FIG_SIZE = (14, 6)

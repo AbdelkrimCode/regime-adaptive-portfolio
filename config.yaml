@@ -13,6 +13,7 @@ backtest:
 
 optimizer:
   smoothing_days: 5
+  safe_haven_assets: ["IEF", "TLT", "GLD"]
 
 paths:
   features: "data/processed/features.parquet"

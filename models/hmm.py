@@ -140,23 +140,18 @@ def select_n_states(features: np.ndarray, candidate_states: list[int] | None = N
     if candidate_states is None:
         candidate_states = [2, 3, 4, 5]
 
-    split = int(len(features) * 0.8)
-    train_features = features[:split]
-    test_features = features[split:]
-
     scaler = StandardScaler()
-    train_scaled = scaler.fit_transform(train_features)
-    test_scaled = scaler.transform(test_features)
+    features_scaled = scaler.fit_transform(features)
     n_features = features.shape[1]
 
     records = []
     for n in candidate_states:
-            print(f"  Fitting HMM with {n} states...")
-            model, _ = fit_hmm_with_n(train_scaled, n)
-            if model is None:
-                continue
-            aic, bic = compute_aic_bic(model, train_scaled, n_features)
-            records.append({"n_states": n, "aic": round(aic, 2), "bic": round(bic, 2)})
+        print(f"  Fitting HMM with {n} states...")
+        model, _ = fit_hmm_with_n(features_scaled, n)
+        if model is None:
+            continue
+        aic, bic = compute_aic_bic(model, features_scaled, n_features)
+        records.append({"n_states": n, "aic": round(aic, 2), "bic": round(bic, 2)})
 
     return pd.DataFrame(records).set_index("n_states")
 
