@@ -24,3 +24,7 @@ paths:
 evaluation:
   train_end: "2018-12-31"
   test_start: "2019-01-01"
+  
+market:
+  risk_free_rate: 0.04
+  trading_days: 252

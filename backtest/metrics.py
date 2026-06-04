@@ -1,8 +1,10 @@
 import numpy as np
 import pandas as pd
+from config import load_config
 
-RISK_FREE_RATE = 0.04
-TRADING_DAYS = 252
+CFG = load_config()
+TRADING_DAYS = CFG["market"]["trading_days"]
+RISK_FREE_RATE = CFG["market"]["risk_free_rate"]
 
 def annualized_return(equity: pd.Series) -> float:
     n_days = len(equity)
