@@ -92,6 +92,23 @@ def print_regime_diagnostics(regimes_df: pd.DataFrame) -> None:
             print(f" {val:>9.1f}%", end="")
         print()
 
+def print_jarque_bera(regimes_df: pd.DataFrame) -> None:
+    from scipy.stats import jarque_bera
+
+    print("\n--- Jarque-Bera Normality Test per Regime ---\n")
+    print(f"  {'Regime':<12} {'N':>6} {'Skew':>8} {'Kurtosis':>10} {'JB Stat':>10} {'p-value':>10} {'Normal?':>8}")
+    print(f"  {'-' * 68}")
+
+    for regime in ["Bull", "Bear", "Sideways", "Crash"]:
+        subset = regimes_df[regimes_df["regime"] == regime]["spy_return"]
+        if len(subset) < 8:
+            continue
+        jb_stat, p_value = jarque_bera(subset)
+        skew = subset.skew()
+        kurt = subset.kurtosis()
+        normal = "Yes" if p_value > 0.05 else "No"
+        print(f"  {regime:<12} {len(subset):>6} {skew:>8.3f} {kurt:>10.3f} {jb_stat:>10.2f} {p_value:>10.4f} {normal:>8}")
+
 def main(retrain: bool = False, charts: bool = True, walk_forward: bool = True) -> None:
     print("=" * 50)
     print("  Regime Adaptive Portfolio")
@@ -134,6 +151,7 @@ def main(retrain: bool = False, charts: bool = True, walk_forward: bool = True) 
 
     print_subperiod_analysis(regimes, returns)
     print_regime_diagnostics(regimes)
+    print_jarque_bera(regimes)
     
     if charts:
         print("\n[4/4] Generating charts...")
