@@ -3,58 +3,58 @@ import pandas as pd
 from optimization.mean_var import max_sharpe
 from optimization.risk_parity import risk_parity
 from optimization.min_variance import min_variance
+from optimization.crash import crash_weights
 
-SMOOTHING_DAYS = 5  
 
 OPTIMIZER_MAP = {
     "Bull": max_sharpe,
     "Bear": risk_parity,
-    "Sideways": min_variance
+    "Sideways": min_variance,
+    "Crash": crash_weights,
 }
 
 def get_weights(regime: str, returns: pd.DataFrame) -> np.ndarray:
     optimizer = OPTIMIZER_MAP[regime]
     return optimizer(returns)
 
-def compute_weights(regimes: pd.Series, returns: pd.DataFrame) -> pd.DataFrame:
+def compute_weights(regimes_df: pd.DataFrame, returns: pd.DataFrame) -> pd.DataFrame:
     assets = returns.columns.tolist()
-    weights = pd.DataFrame(index=regimes.index, columns=assets, dtype=float)
-    
+    weights = pd.DataFrame(index=regimes_df.index, columns=assets, dtype=float)
+    cached_weights = {"Bull": None, "Bear": None, "Sideways": None, "Crash": None}
     current_regime = None
-    current_weights = None
-    target_weights = None
-    days_since_switch = SMOOTHING_DAYS  
-    
-    for date, regime in regimes.items():
-        if regime != current_regime:
-            target_weights = None
-            available_returns = returns.loc[:date]
-            
-            if len(available_returns) < 126:
-                target_weights = np.ones(len(assets)) / len(assets)
-            else:
-                target_weights = get_weights(regime, available_returns)
-                target_weights = np.clip(target_weights, 0, None)
-                target_weights = target_weights / np.sum(target_weights)
-                
-                if np.max(target_weights) > 0.99:
-                    target_weights = np.ones(len(assets)) / len(assets)
-            
-            if current_weights is None:
-                current_weights = target_weights
-            
-            days_since_switch = 0
+
+    for date, row in regimes_df.iterrows():
+        regime = row["regime"]
+        available_returns = returns.loc[:date]
+
+        if len(available_returns) < 126:
+            weights.loc[date] = np.ones(len(assets)) / len(assets)
+            continue
+
+        is_retrain = row.get("is_retrain_date", False)
+
+        if regime != current_regime or is_retrain:
+            for label in ["Bull", "Bear", "Sideways", "Crash"]:
+                if label == regime or is_retrain:
+                    raw = get_weights(label, available_returns)
+                    raw = np.clip(raw, 0, None)
+                    raw = raw / np.sum(raw)
+                    if np.max(raw) > 0.99:
+                        raw = np.ones(len(assets)) / len(assets)
+                    cached_weights[label] = raw
             current_regime = regime
 
-        if days_since_switch < SMOOTHING_DAYS:
-            alpha = (days_since_switch + 1) / SMOOTHING_DAYS
-            blended = (1 - alpha) * current_weights + alpha * target_weights
-            weights.loc[date] = blended
-            if days_since_switch == SMOOTHING_DAYS - 1:
-                current_weights = target_weights
-        else:
-            weights.loc[date] = current_weights
-        
-        days_since_switch += 1
-    
+        blended = np.zeros(len(assets))
+        for label in ["Bull", "Bear", "Sideways", "Crash"]:
+            p = row[f"p_{label.lower()}"]
+            if cached_weights[label] is None:
+                continue
+            blended += p * cached_weights[label]
+
+        total = np.sum(blended)
+        if total > 0:
+            blended = blended / total
+
+        weights.loc[date] = blended
+
     return weights
