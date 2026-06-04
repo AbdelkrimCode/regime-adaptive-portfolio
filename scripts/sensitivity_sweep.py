@@ -20,6 +20,7 @@ CORR_WINDOWS  = [42, 63, 126]
 RESULTS_PATH  = "data/sensitivity_results.csv"
 
 def run_single(vol_window: int, corr_window: int) -> dict:
+    CFG["hmm"]["n_jobs"] = 8
     print(f"\n--- VOL_WINDOW={vol_window}, CORR_WINDOW={corr_window} ---")
 
     prices = fetch_prices()
