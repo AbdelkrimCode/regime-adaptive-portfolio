@@ -16,7 +16,7 @@ def compute_returns(prices: pd.DataFrame) -> pd.DataFrame:
     return returns
 
 
-def compute_features(returns: pd.DataFrame, prices: pd.DataFrame, vol_window: int = VOL_WINDOW, corr_window: int = CORR_WINDOW) -> pd.DataFrame:
+def compute_features(returns: pd.DataFrame, vol_window: int = VOL_WINDOW, corr_window: int = CORR_WINDOW) -> pd.DataFrame:
     """
     Build feature matrix for HMM fitting.
 
