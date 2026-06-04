@@ -11,15 +11,16 @@ from data.risk_free import fetch_risk_free
 CFG = load_config()
 
 def print_metrics(results: dict):
-    print(f"\n{'Metric':<25} {'Portfolio':>12} {'SPY':>12} {'EqualWeight':>12} {'60/40':>12} {'Momentum':>12}")
-    print("-" * 80)
+    print(f"\n{'Metric':<25} {'Portfolio':>12} {'SPY':>12} {'EqualWeight':>12} {'60/40':>12} {'Momentum':>12} {'RiskParity':>12}")
+    print("-" * 92)
     for metric in results["portfolio"]:
         print(f"{metric:<25} "
               f"{results['portfolio'][metric]:>12} "
               f"{results['spy'][metric]:>12} "
               f"{results['equal_weight'][metric]:>12} "
               f"{results['sixty_forty'][metric]:>12} "
-              f"{results['momentum'][metric]:>12}")
+              f"{results['momentum'][metric]:>12} "
+              f"{results['risk_parity'][metric]:>12}")
 
 def main(retrain: bool = False, charts: bool = True, walk_forward: bool = True) -> None:
     print("=" * 50)
