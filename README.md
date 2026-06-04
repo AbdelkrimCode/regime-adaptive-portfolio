@@ -362,6 +362,8 @@ pytest tests/
 
 **State labeling uses first feature only.** `label_states()` ranks states on SPY return mean only, ignoring volatility and correlation. Two states with similar return means but different volatility profiles could be mislabeled. A composite Sharpe-based ranking was tested and reverted — it produced worse out-of-sample results despite sounder theory.
 
+**Risk parity is an approximation.** The Bear regime optimizer minimizes `quad_form(w, sigma) - (1/n)*sum(log(w))` with `w >= 0.01` and no sum-to-one constraint, normalizing weights post-hoc. This is a variance-minimizing portfolio with a log-diversification penalty — a practical approximation that produces weights close to equal risk contribution (ERC) but does not guarantee true ERC. Calling it "risk parity" is conventional but technically imprecise.
+
 **Bootstrap independence assumption.** Portfolio and SPY are resampled with independent block offsets, destroying cross-series correlation. A paired bootstrap would be more appropriate.
 
 **Asset universe.** Limited to 8 ETFs. Transaction costs modeled at 2bps — not accounting for market impact at scale.
