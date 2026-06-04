@@ -1,50 +1,66 @@
 import numpy as np
 import pandas as pd
 from optimization.switcher import compute_weights
+from config import load_config
 
-INITIAL_CAPITAL = 1.0
-TRANSACTION_COST = 0.0002  
+CFG = load_config()
 
-def align_data(weights: pd.DataFrame, returns: pd.DataFrame):
+def align_data(weights: pd.DataFrame, returns: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     common_dates = weights.index.intersection(returns.index)
     return weights.loc[common_dates], returns.loc[common_dates]
 
 def simulate(weights: pd.DataFrame, returns: pd.DataFrame) -> pd.DataFrame:
     weights, returns = align_data(weights, returns)
-    
+
     weights_shifted = weights.shift(1).dropna()
     returns_aligned = returns.loc[weights_shifted.index]
-    
-    # Daily portfolio returns
+
     port_returns = (weights_shifted.values * returns_aligned.values).sum(axis=1)
-    
-    # Transaction costs — charged on days where weights changed
+
     weight_changes = weights_shifted.diff().abs().sum(axis=1)
-    costs = weight_changes * TRANSACTION_COST
-    
+    costs = weight_changes * CFG["backtest"]["transaction_cost"]
+
     port_returns = port_returns - costs.values
     port_returns = pd.Series(port_returns, index=weights_shifted.index, name="portfolio_return")
-    
-    # Equity curve
-    equity = (1 + port_returns).cumprod() * INITIAL_CAPITAL
+
+    equity = (1 + port_returns).cumprod() * CFG["backtest"]["initial_capital"]
     equity.name = "equity"
-    
+
     return pd.DataFrame({
         "portfolio_return": port_returns,
         "equity": equity
     })
 
-def run() -> pd.DataFrame:
-    regimes_df = pd.read_parquet("data/regimes.parquet")
-    returns = pd.read_parquet("data/processed/returns.parquet")
-    
-    regimes = regimes_df["regime"]
-    weights = compute_weights(regimes, returns)
-    
+def run(regimes_df: pd.DataFrame | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+    if regimes_df is None:
+        regimes_df = pd.read_parquet(CFG["paths"]["regimes"])
+
+    returns = pd.read_parquet(CFG["paths"]["returns"])
+
+    weights = compute_weights(regimes_df, returns)
+
     result = simulate(weights, returns)
-    result.to_parquet("data/backtest_results.parquet")
-    
-    return result
+    result.to_parquet(CFG["paths"]["backtest_results"])
+
+    return result, weights
+
+def run_period(
+    start: str,
+    end: str,
+    regimes_df: pd.DataFrame | None = None
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    if regimes_df is None:
+        regimes_df = pd.read_parquet(CFG["paths"]["regimes"])
+
+    returns = pd.read_parquet(CFG["paths"]["returns"])
+
+    regimes_slice = regimes_df.loc[start:end]
+    returns_slice = returns.loc[start:end]
+
+    weights = compute_weights(regimes_slice, returns_slice)
+    result = simulate(weights, returns_slice)
+
+    return result, weights
 
 if __name__ == "__main__":
     result = run()

@@ -12,10 +12,14 @@ def annualized_return(equity: pd.Series) -> float:
 def annualized_volatility(returns: pd.Series) -> float:
     return returns.std() * np.sqrt(TRADING_DAYS)
 
-def sharpe_ratio(returns: pd.Series) -> float:
-    ann_ret = annualized_return((1 + returns).cumprod())
-    ann_vol = annualized_volatility(returns)
-    return (ann_ret - RISK_FREE_RATE) / ann_vol
+def sharpe_ratio(returns: pd.Series, rf: pd.Series | None = None) -> float:
+    if rf is not None:
+        rf_aligned = rf.reindex(returns.index).ffill().fillna(0)
+        excess = returns - rf_aligned
+    else:
+        excess = returns
+
+    return excess.mean() / excess.std() * np.sqrt(TRADING_DAYS)
 
 def max_drawdown(equity: pd.Series) -> float:
     peak = equity.cummax()
@@ -27,11 +31,15 @@ def calmar_ratio(equity: pd.Series, returns: pd.Series) -> float:
     mdd = abs(max_drawdown(equity))
     return ann_ret / mdd if mdd != 0 else np.nan
 
-def compute_all(returns: pd.Series, equity: pd.Series) -> dict:
+def average_turnover(weights: pd.DataFrame) -> float:
+    daily_turnover = weights.diff().abs().sum(axis=1)
+    return round(daily_turnover.mean(), 4)
+
+def compute_all(returns: pd.Series, equity: pd.Series, rf: pd.Series | None = None) -> dict:
     return {
         "annualized_return":     round(annualized_return(equity), 4),
         "annualized_volatility": round(annualized_volatility(returns), 4),
-        "sharpe_ratio":          round(sharpe_ratio(returns), 4),
+        "sharpe_ratio":          round(sharpe_ratio(returns, rf=rf), 4),
         "max_drawdown":          round(max_drawdown(equity), 4),
         "calmar_ratio":          round(calmar_ratio(equity, returns), 4)
     }
