@@ -43,6 +43,55 @@ def print_subperiod_analysis(regimes_df: pd.DataFrame, returns: pd.DataFrame) ->
             print(f"  {metric:<25} {port_metrics[metric]:>12} {spy_metrics[metric]:>12}")
         print()
 
+def print_regime_diagnostics(regimes_df: pd.DataFrame) -> None:
+    print("\n--- Regime Diagnostics ---\n")
+
+    regime_seq = regimes_df["regime"]
+
+    runs = []
+    current = regime_seq.iloc[0]
+    count = 1
+    for label in regime_seq.iloc[1:]:
+        if label == current:
+            count += 1
+        else:
+            runs.append({"regime": current, "duration": count})
+            current = label
+            count = 1
+    runs.append({"regime": current, "duration": count})
+    runs_df = pd.DataFrame(runs)
+
+    print("Regime run-length statistics (days):")
+    print(f"  {'Regime':<12} {'Count':>8} {'Mean':>8} {'Median':>8} {'Min':>8} {'Max':>8}")
+    print(f"  {'-' * 52}")
+    for regime in ["Bull", "Bear", "Sideways", "Crash"]:
+        subset = runs_df[runs_df["regime"] == regime]["duration"]
+        if len(subset) == 0:
+            continue
+        print(f"  {regime:<12} {len(subset):>8} {subset.mean():>8.1f} {subset.median():>8.1f} {subset.min():>8} {subset.max():>8}")
+
+    print("\nEmpirical transition matrix (row → col, % of exits):")
+    labels = ["Bull", "Bear", "Sideways", "Crash"]
+    trans = pd.DataFrame(0, index=labels, columns=labels)
+    for i in range(len(runs_df) - 1):
+        from_r = runs_df.iloc[i]["regime"]
+        to_r = runs_df.iloc[i + 1]["regime"]
+        if from_r in labels and to_r in labels:
+            trans.loc[from_r, to_r] += 1
+
+    trans_pct = trans.div(trans.sum(axis=1), axis=0) * 100
+    print(f"\n  {'':12}", end="")
+    for col in labels:
+        print(f" {col:>10}", end="")
+    print()
+    print(f"  {'-' * 55}")
+    for row in labels:
+        print(f"  {row:<12}", end="")
+        for col in labels:
+            val = trans_pct.loc[row, col]
+            print(f" {val:>9.1f}%", end="")
+        print()
+
 def main(retrain: bool = False, charts: bool = True, walk_forward: bool = True) -> None:
     print("=" * 50)
     print("  Regime Adaptive Portfolio")
@@ -84,6 +133,7 @@ def main(retrain: bool = False, charts: bool = True, walk_forward: bool = True) 
         print(f"{metric:<25} {test_metrics[metric]:>12} {spy_test_metrics[metric]:>12}")
 
     print_subperiod_analysis(regimes, returns)
+    print_regime_diagnostics(regimes)
     
     if charts:
         print("\n[4/4] Generating charts...")
