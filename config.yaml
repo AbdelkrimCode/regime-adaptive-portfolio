@@ -24,7 +24,18 @@ paths:
 evaluation:
   train_end: "2018-12-31"
   test_start: "2019-01-01"
-  
+
 market:
   risk_free_rate: 0.04
   trading_days: 252
+  
+subperiods:
+  "GFC (2008-2009)":
+    start: "2008-01-01"
+    end:   "2009-12-31"
+  "Low-vol bull (2013-2019)":
+    start: "2013-01-01"
+    end:   "2019-12-31"
+  "COVID+rates (2020-2024)":
+    start: "2020-01-01"
+    end:   "2024-12-31"

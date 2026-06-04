@@ -22,6 +22,27 @@ def print_metrics(results: dict):
               f"{results['momentum'][metric]:>12} "
               f"{results['risk_parity'][metric]:>12}")
 
+def print_subperiod_analysis(regimes_df: pd.DataFrame, returns: pd.DataFrame) -> None:
+    rf = fetch_risk_free()
+    print("\n--- Subperiod Analysis ---\n")
+
+    for label, period in CFG["subperiods"].items():
+        start, end = period["start"], period["end"]
+        result, _ = run_period(start=start, end=end, regimes_df=regimes_df)
+
+        spy_slice = returns.loc[start:end, "SPY"]
+        spy_equity = (1 + spy_slice).cumprod()
+
+        port_metrics = compute_all(result["portfolio_return"], result["equity"], rf=rf)
+        spy_metrics = compute_all(spy_slice, spy_equity, rf=rf)
+
+        print(f"{label}")
+        print(f"  {'Metric':<25} {'Portfolio':>12} {'SPY':>12}")
+        print(f"  {'-' * 50}")
+        for metric in port_metrics:
+            print(f"  {metric:<25} {port_metrics[metric]:>12} {spy_metrics[metric]:>12}")
+        print()
+
 def main(retrain: bool = False, charts: bool = True, walk_forward: bool = True) -> None:
     print("=" * 50)
     print("  Regime Adaptive Portfolio")
@@ -62,6 +83,8 @@ def main(retrain: bool = False, charts: bool = True, walk_forward: bool = True) 
     for metric in test_metrics:
         print(f"{metric:<25} {test_metrics[metric]:>12} {spy_test_metrics[metric]:>12}")
 
+    print_subperiod_analysis(regimes, returns)
+    
     if charts:
         print("\n[4/4] Generating charts...")
         run_charts()
