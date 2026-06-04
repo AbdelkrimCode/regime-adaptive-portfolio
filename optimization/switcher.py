@@ -46,7 +46,10 @@ def compute_weights(regimes_df: pd.DataFrame, returns: pd.DataFrame) -> pd.DataF
 
         blended = np.zeros(len(assets))
         for label in ["Bull", "Bear", "Sideways", "Crash"]:
-            p = row[f"p_{label.lower()}"]
+            col = f"p_{label.lower()}"
+            if col not in row.index or pd.isna(row[col]):
+                continue
+            p = row[col]
             if cached_weights[label] is None:
                 continue
             blended += p * cached_weights[label]

@@ -143,9 +143,19 @@ def plot_state_selection(scores_df: pd.DataFrame, output_path: str | None = None
 def label_states(model: GaussianHMM, feature_df: pd.DataFrame) -> dict:
     state_means = model.means_[:, 0]
     ranking = np.argsort(state_means)
-    labels = ["Crash", "Bear", "Sideways", "Bull"]
-    n = model.n_components
-    return {ranking[i]: labels[4 - n + i] for i in range(n)}
+    n = len(ranking)
+    if n == 4:
+        return {
+            ranking[0]: "Crash",
+            ranking[1]: "Bear",
+            ranking[2]: "Sideways",
+            ranking[3]: "Bull"
+        }
+    return {
+        ranking[0]: "Bear",
+        ranking[1]: "Sideways",
+        ranking[2]: "Bull"
+    }
 
 def get_transition_matrix(model: GaussianHMM, state_labels: dict) -> pd.DataFrame:
     n = model.n_components

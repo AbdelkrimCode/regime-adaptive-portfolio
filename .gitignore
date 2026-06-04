@@ -4,3 +4,7 @@ data/processed/
 data/regimes.parquet
 data/backtest_results.parquet
 models/hmm_model.joblib
+.vscode/
+__pycache__/
+**/__pycache__/
+**/.ipynb_checkpoints/

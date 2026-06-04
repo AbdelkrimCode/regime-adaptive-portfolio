@@ -2,9 +2,9 @@ import pandas as pd
 import numpy as np
 from data.risk_free import fetch_risk_free
 from backtest.metrics import compute_all
+from config import load_config as _load_config
 
-
-TRANSACTION_COST = 0.0002
+TRANSACTION_COST = _load_config()["backtest"]["transaction_cost"]
 
 def apply_transaction_costs(weights: pd.DataFrame, returns: pd.Series) -> pd.Series:
     weight_changes = weights.diff().abs().sum(axis=1)
@@ -89,6 +89,30 @@ def get_momentum_equity(returns: pd.DataFrame, lookback: int = 252, top_n: int =
     equity.name = "momentum_equity"
     return port_returns, equity
 
+def get_risk_parity_equity(returns: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
+    from optimization.risk_parity import risk_parity
+
+    monthly_ends = returns.resample("ME").last().index
+    weights = pd.DataFrame(index=returns.index, columns=returns.columns, dtype=float)
+
+    for i, month_end in enumerate(monthly_ends):
+        next_month_end = monthly_ends[i + 1] if i + 1 < len(monthly_ends) else returns.index[-1]
+        history = returns.loc[:month_end]
+        if len(history) < 126:
+            continue
+        raw = risk_parity(history)
+        mask = (returns.index > month_end) & (returns.index <= next_month_end)
+        weights.loc[mask] = raw
+
+    weights = weights.dropna()
+    aligned_returns = returns.loc[weights.index]
+    port_returns = (weights.values * aligned_returns.values).sum(axis=1)
+    port_returns = pd.Series(port_returns, index=weights.index, name="risk_parity_return")
+    port_returns = apply_transaction_costs(weights, port_returns)
+    equity = (1 + port_returns).cumprod()
+    equity.name = "risk_parity_equity"
+    return port_returns, equity
+
 def run() -> dict:
     from config import load_config
     CFG = load_config()
@@ -106,6 +130,7 @@ def run() -> dict:
     ew_returns, ew_equity = get_equal_weight_equity(returns)
     sf_returns, sf_equity = get_sixty_forty_equity(returns)
     mom_returns, mom_equity = get_momentum_equity(returns)
+    rp_returns, rp_equity = get_risk_parity_equity(returns)
 
     return {
         "portfolio":    compute_all(backtest["portfolio_return"], backtest["equity"], rf=rf),
@@ -113,6 +138,7 @@ def run() -> dict:
         "equal_weight": compute_all(ew_returns, ew_equity, rf=rf),
         "sixty_forty":  compute_all(sf_returns, sf_equity, rf=rf),
         "momentum":     compute_all(mom_returns, mom_equity, rf=rf),
+        "risk_parity": compute_all(rp_returns, rp_equity, rf=rf),
     }
 
 if __name__ == "__main__":

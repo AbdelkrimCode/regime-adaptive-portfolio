@@ -1,8 +1,10 @@
 import numpy as np
 import pandas as pd
 import cvxpy as cp
+from config import load_config
 
-TRADING_DAYS = 252
+CFG = load_config()
+TRADING_DAYS = CFG["market"]["trading_days"]
 
 from sklearn.covariance import LedoitWolf
 
