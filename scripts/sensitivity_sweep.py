@@ -72,5 +72,27 @@ def main() -> None:
     print(df.to_string(index=False))
     print(f"\nFull results saved to {RESULTS_PATH}")
 
+def bootstrap_sweep() -> None:
+    from backtest.bootstrap import run_bootstrap, summarize
+
+    block_lengths = [10, 20, 40]
+
+    returns = pd.read_parquet(CFG["paths"]["returns"])
+    backtest = pd.read_parquet(CFG["paths"]["backtest_results"])
+
+    common = returns.index.intersection(backtest.index)
+    spy_returns = returns.loc[common, "SPY"]
+    port_returns = backtest.loc[common, "portfolio_return"]
+
+    print("\n=== Bootstrap Sensitivity (BLOCK_LENGTH) ===")
+    print(f"  {'block_length':>12} {'p_value':>10} {'mean_diff':>10} {'ci_lower':>10} {'ci_upper':>10}")
+    print(f"  {'-' * 55}")
+
+    for block_length in block_lengths:
+        bootstrap_df = run_bootstrap(port_returns, spy_returns, block_length=block_length)
+        summary = summarize(bootstrap_df)
+        print(f"  {block_length:>12} {summary['p_value']:>10} {summary['mean_sharpe_diff']:>10} {summary['ci_lower']:>10} {summary['ci_upper']:>10}")
+
 if __name__ == "__main__":
     main()
+    bootstrap_sweep()
