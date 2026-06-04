@@ -104,7 +104,7 @@ def _fit_fold(
         return None
 
     test_features = test_df[features_cols].values
-    state_labels = label_states(model, train_df)
+    state_labels = label_states(model)
     features_scaled = scaler.transform(test_features)
     hidden_states, posteriors = forward_filter(model, features_scaled)
 
@@ -179,7 +179,7 @@ def plot_state_selection(scores_df: pd.DataFrame, output_path: str | None = None
     plt.close()
     print(f"      Saved to {output_path}")
 
-def label_states(model: GaussianHMM, feature_df: pd.DataFrame) -> dict:
+def label_states(model: GaussianHMM) -> dict:
     state_means = model.means_[:, 0]
     ranking = np.argsort(state_means)
     n = len(ranking)
@@ -224,7 +224,7 @@ def get_regime_durations(transmat: pd.DataFrame) -> pd.Series:
 def predict_regimes(model: GaussianHMM, features: np.ndarray,
                     feature_df: pd.DataFrame,
                     scaler: StandardScaler) -> pd.DataFrame:
-    state_labels = label_states(model, feature_df)
+    state_labels = label_states(model)
     features_scaled = scaler.transform(features)
     hidden_states, posteriors = forward_filter(model, features_scaled)
 
@@ -332,7 +332,7 @@ if __name__ == "__main__":
     print("\nTransition Matrix:")
     model, scaler = load_model()
     df = load_features()
-    state_labels = label_states(model, df)
+    state_labels = label_states(model)
     transmat = get_transition_matrix(model, state_labels)
     print(transmat.round(4))
     print("\nAverage Regime Durations:")

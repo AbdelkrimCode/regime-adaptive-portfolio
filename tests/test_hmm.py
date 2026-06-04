@@ -82,7 +82,7 @@ def test_label_states_four_states():
         [0.002, 0.008, 0.3],
     ])
     feature_df = pd.DataFrame()
-    labels = label_states(model, feature_df)
+    labels = label_states(model)
     assert set(labels.values()) == {"Bull", "Bear", "Sideways", "Crash"}
 
 
@@ -95,7 +95,7 @@ def test_label_states_ordering():
         [-0.001],
     ])
     feature_df = pd.DataFrame()
-    labels = label_states(model, feature_df)
+    labels = label_states(model)
     means = model.means_[:, 0]
     ranking = np.argsort(means)
     assert labels[ranking[0]] == "Crash"

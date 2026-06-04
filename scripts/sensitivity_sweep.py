@@ -47,7 +47,7 @@ def run_single(vol_window: int, corr_window: int, n_jobs: int = 8) -> dict:
     from backtest.engine import run_period
     test_result, _ = run_period(start=test_start, end="2024-12-31", regimes_df=regimes)
     rf_test = rf.reindex(test_result.index).ffill().fillna(0)
-    test_metrics = compute_all(test_result["portfolio_return"], test_result["equity"], rf=rf)
+    test_metrics = compute_all(test_result["portfolio_return"], test_result["equity"], rf=rf_test)
 
     return {
         "vol_window":         vol_window,
