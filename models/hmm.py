@@ -284,6 +284,47 @@ def walk_forward_regimes(df: pd.DataFrame) -> pd.DataFrame:
 
     return result
 
+def audit_walk_forward(output_path: str = "data/walk_forward_audit.csv") -> pd.DataFrame:
+    df = load_features()
+
+    retrain_dates = pd.date_range(
+        start=df.index.min(),
+        end=df.index.max(),
+        freq=CFG["hmm"]["retrain_frequency"]
+    )
+
+    records = []
+    for i, retrain_date in enumerate(retrain_dates):
+        next_date = retrain_dates[i + 1] if i + 1 < len(retrain_dates) else df.index.max()
+        train_df = df.loc[:retrain_date]
+        test_df = df.loc[retrain_date:next_date].iloc[1:]
+
+        if len(train_df) < CFG["hmm"]["min_train_days"] or len(test_df) == 0:
+            continue
+
+        train_end = train_df.index[-1]
+        test_start = test_df.index[0]
+        leakage = train_end >= test_start
+
+        records.append({
+            "fold": i,
+            "retrain_date": retrain_date.date(),
+            "train_end": train_end.date(),
+            "test_start": test_start.date(),
+            "test_end": next_date.date(),
+            "train_days": len(train_df),
+            "test_days": len(test_df),
+            "leakage": leakage
+        })
+
+    audit_df = pd.DataFrame(records)
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    audit_df.to_csv(output_path, index=False)
+    print(f"Audit saved to {output_path}")
+    print(f"Total folds: {len(audit_df)}")
+    print(f"Leakage detected: {audit_df['leakage'].sum()} folds")
+    return audit_df
+
 
 def save_model(model: GaussianHMM, scaler: StandardScaler, path: str | None = None) -> None:
     if path is None:
