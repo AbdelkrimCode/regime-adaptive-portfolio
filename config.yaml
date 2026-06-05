@@ -13,6 +13,7 @@ backtest:
 
 optimizer:
   safe_haven_assets: ["IEF", "TLT", "GLD"]
+  max_position: 0.60
 
 paths:
   features: "data/processed/features.parquet"
