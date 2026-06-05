@@ -17,7 +17,7 @@ CFG = load_config()
 
 VOL_WINDOWS   = [10, 21, 42]
 CORR_WINDOWS  = [42, 63, 126]
-RESULTS_PATH  = "data/sensitivity_results.csv"
+RESULTS_PATH  = CFG["paths"]["sensitivity_results"]
 
 def run_single(vol_window: int, corr_window: int, n_jobs: int = 8) -> dict:
     CFG["hmm"]["n_jobs"] = n_jobs
