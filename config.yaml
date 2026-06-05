@@ -40,3 +40,8 @@ subperiods:
   "COVID+rates (2020-2024)":
     start: "2020-01-01"
     end:   "2024-12-31"
+    
+stress_test:
+  n_simulations: 1000
+  confidence: 0.95
+  vix_threshold: 30.0
