@@ -9,7 +9,7 @@ Algorithmic portfolio optimizer combining Hidden Markov Model regime detection w
 ## How It Works
 
 ### 1. Regime Detection
-A Gaussian HMM trained on three features — SPY log returns, 21-day rolling volatility, and 63-day mean pairwise correlation — labels each trading day as Bull, Bear, Sideways, or Crash. The model is retrained quarterly using an expanding window to prevent lookahead bias. Walk-forward retraining is the default.
+A Gaussian HMM trained on three features — SPY log returns, rolling volatility, and rolling mean pairwise correlation — labels each trading day as Bull, Bear, Sideways, or Crash. Feature windows (`vol_window`, `corr_window`) are configurable via `config.yaml` (defaults: 21-day vol, 63-day correlation). The model is retrained quarterly using an expanding window to prevent lookahead bias. Walk-forward retraining is the default.
 
 State ordering is determined by ranking state means on the return feature after every retrain:
 - Lowest mean return → Crash
@@ -250,7 +250,7 @@ regime-adaptive-portfolio/
 ├── config.py              # YAML loader
 ├── data/
 │   ├── fetch.py           # Downloads adjusted close prices via yfinance
-│   ├── process.py         # Log returns, rolling volatility, rolling correlation (parametric windows)
+│   ├── process.py         # Log returns, rolling volatility, rolling correlation (windows configurable via config.yaml)
 │   └── risk_free.py       # 3-month T-bill rate (^IRX) with daily conversion and caching
 ├── models/
 │   └── hmm.py             # Gaussian HMM, causal forward-filter, nested CV, parallelized walk-forward
@@ -274,7 +274,7 @@ regime-adaptive-portfolio/
 │   ├── test_optimizers.py # 14 tests — optimizer functions and compute_weights
 │   └── test_integration.py # 4 tests — end-to-end pipeline regression
 ├── visualization/
-│   └── charts.py          # Equity curves, drawdown, regime overlay (all 4 regimes)
+│   └── charts.py          # Equity curves, drawdown, regime overlay, PCA regime separation
 └── main.py                # Full pipeline entry point
 ```
 
@@ -349,6 +349,12 @@ pytest tests/
 ---
 
 ## Limitations
+
+**Regime separation is weak in feature space.** PCA of the three features (SPY return, volatility, mean correlation) projected to 2D shows heavy overlap between Bull, Bear, and Sideways in the dense central region. Clear separation exists only in the left tail — extreme negative return / high volatility events (Crash and severe Bear). This explains the non-significant bootstrap p-value (0.376) and weak held-out Sharpe: the model adds value at the extremes, not during normal regimes.
+
+**Expanding covariance window mixes regimes.** The optimizer uses `returns.loc[:date]` — an expanding window that grows from ~3,260 to ~4,780 days. Early folds use covariance estimates dominated by 2008 volatility (60% annualized); late folds mix that with 2024 volatility (15% annualized). A rolling window would be more stationary but introduces instability in small samples. This is a known tradeoff; expanding window is retained as the default.
+
+**Crash regime uses equal-weight allocation.** The Crash optimizer assigns equal weight to safe-haven assets (IEF, TLT, GLD) regardless of their current correlations. In 2022, TLT and GLD both sold off simultaneously with equities, exposing the limitation of hardcoded safe havens. A vol-targeting or min-CVaR optimizer over the safe-haven subset would be more adaptive.
 
 **Gaussian emission assumption violated.** Jarque-Bera tests reject normality for all four regimes (p≈0). Bear regime kurtosis is 14.3 — extreme fat tails. A Student-t HMM would be more appropriate but is not available in hmmlearn.
 
