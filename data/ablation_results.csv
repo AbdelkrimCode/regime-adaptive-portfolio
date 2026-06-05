@@ -1,5 +1,0 @@
-feature_set,sharpe,max_drawdown,calmar,held_out_sharpe,held_out_drawdown
-baseline,0.4527,-0.2606,0.1822,0.2921,-0.2606
-vol_10,0.5788,-0.2385,0.2462,0.2728,-0.2385
-vol_42,0.4098,-0.2691,0.1658,0.3095,-0.2691
-skew_kurt,0.4661,-0.2814,0.1761,0.0672,-0.2814
