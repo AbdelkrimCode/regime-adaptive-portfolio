@@ -2,7 +2,7 @@
 
 Algorithmic portfolio optimizer combining Hidden Markov Model regime detection with convex optimization. v6 fixes within-window Viterbi lookahead, documents label permutation handling, and corrects the held-out optimizer starvation bug in `run_period()`.
 
-![Python](https://img.shields.io/badge/python-3.10+-blue) ![License](https://img.shields.io/badge/license-MIT-green)
+![Python](https://img.shields.io/badge/python-3.10+-blue) ![License](https://img.shields.io/badge/license-MIT-green) ![Tests](https://github.com/AbdelkrimCode/regime-adaptive-portfolio/actions/workflows/tests.yml/badge.svg)
 
 ---
 
@@ -235,7 +235,13 @@ Tail risk is dramatically lower than SPY across all measures. Both strategies pr
 | Frozen out-of-sample | Not tested | Frozen Sharpe 0.324 — strategy generalizes |
 | Stress profile | Missing | VaR, CVaR, VIX-conditional, Monte Carlo documented |
 | PCA regime validation | Missing | Regimes overlap in dense region; separation only in tail |
+| Position limits | None — concentration up to 99% | 60% per-asset cap in min-variance and risk-parity |
+| CI/CD | None | GitHub Actions — pytest on every push to main |
 | Known limitations | Partial | Comprehensively documented |
+
+### Negative Result: Macro Features
+
+VIX and yield curve slope (5Y-3M spread) were added as additional HMM features to address SPY circularity. Full-sample Sharpe improved (0.444 → 0.558) but held-out Sharpe collapsed (0.291 → 0.135). The macro features overfitted — the HMM learned to associate VIX levels with regimes in the training period but this relationship did not generalize to 2019–2024. The 3-feature baseline was restored. This experiment confirms the feature ablation finding: in-sample improvement does not imply out-of-sample robustness.
 
 ## v5 → v6 Improvements
 
@@ -445,7 +451,7 @@ pytest tests/
 
 **COVID+rates weakness.** The 2020 crash was too fast for a causal HMM. The 2022 rate-driven bear hit bonds and equities simultaneously, limiting the flight-to-safety allocation.
 
-**SPY circularity.** SPY is both the regime-detection instrument (return and volatility features) and an investable asset in the portfolio. A macro indicator (ACWI, VIX) would provide more orthogonal signal for regime detection.
+**SPY circularity.** SPY is both the regime-detection instrument (return and volatility features) and an investable asset in the portfolio. VIX and yield curve slope (5Y-3M spread) were tested as additional macro features to provide more orthogonal signal. Full-sample Sharpe improved but held-out Sharpe collapsed (0.291 → 0.135) — the macro features overfit to the training period. The 3-feature baseline was restored. True orthogonality would require a signal derived from a completely different data source (e.g. economic survey data, options market structure).
 
 **Mean return as signal.** The Mean-Variance optimizer uses sample mean returns — near-zero signal-to-noise at daily frequency. Shrinkage toward a factor model or Black-Litterman prior would be more robust.
 
@@ -463,7 +469,7 @@ pytest tests/
 
 **Markov assumption.** HMMs assume the current state depends only on the previous state — no memory beyond one step. Markets exhibit momentum and mean-reversion at multiple horizons, violating this assumption. A higher-order HMM or regime-duration model would be more expressive but significantly harder to fit.
 
-**No hard position limits.** The optimizer constrains weights to [0, 1] but does not impose a per-asset cap. In theory a single asset could receive near-100% allocation. A soft cap of 60–70% per asset would be more appropriate for live deployment.
+**Position limits capped at 60% per asset.** Min-variance and risk-parity optimizers enforce a hard upper bound of 60% per asset via CVXPY constraint. The max-Sharpe optimizer uses the Lagrangian auxiliary variable formulation where position limits interact differently with the QP structure — the 60% cap is applied post-normalization via the existing concentration guard.
 
 **Forward filter initialization uses training startprob.** The causal forward filter initializes `alpha[0]` using `model.startprob_` learned on training data. In test folds starting mid-cycle, the true initial state distribution may differ. This is a minor bias that cannot be corrected without knowing the true state at the test period start.
 
