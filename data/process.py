@@ -46,6 +46,17 @@ def compute_features(returns: pd.DataFrame, vol_window: int = VOL_WINDOW, corr_w
 
     return features
 
+def compute_skew_kurt_features(returns: pd.DataFrame, window: int = VOL_WINDOW) -> pd.DataFrame:
+    spy = returns["SPY"]
+    spy_skew = spy.rolling(window).skew()
+    spy_kurt = spy.rolling(window).kurt()
+
+    return pd.DataFrame({
+        "spy_return": spy,
+        "spy_skew":   spy_skew,
+        "spy_kurt":   spy_kurt,
+    }).dropna()
+
 
 def process_and_save(prices: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     os.makedirs(PROCESSED_DIR, exist_ok=True)
