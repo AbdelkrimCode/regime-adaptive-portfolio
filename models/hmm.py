@@ -340,7 +340,7 @@ def load_model(path: str | None = None) -> tuple[GaussianHMM, StandardScaler]:
 
 def run(retrain : bool = False, walk_forward : bool = False) -> pd.DataFrame:
     df = load_features()
-    features = df[["spy_return", "spy_vol", "mean_corr"]].values
+    features = df.values
 
     if walk_forward:
         print("Running walk-forward retraining...")
