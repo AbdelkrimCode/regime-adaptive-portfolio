@@ -241,7 +241,7 @@ def predict_regimes(model: GaussianHMM, features: np.ndarray,
 def walk_forward_regimes(df: pd.DataFrame) -> pd.DataFrame:
     from joblib import Parallel, delayed
 
-    features_cols = ["spy_return", "spy_vol", "mean_corr"]
+    features_cols = df.columns.tolist()
 
     retrain_dates = pd.date_range(
         start=df.index.min(),
