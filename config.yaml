@@ -20,7 +20,13 @@ paths:
   model: "models/hmm_model.joblib"
   regimes: "data/regimes.parquet"
   backtest_results: "data/backtest_results.parquet"
-  charts: "data/charts.png"
+  charts: "results/figures/charts.png"
+  bootstrap: "results/figures/bootstrap.png"
+  state_selection: "results/figures/state_selection.png"
+  pca_regimes: "results/figures/pca_regimes.png"
+  sensitivity_results: "results/sensitivity_results.csv"
+  walk_forward_audit: "results/walk_forward_audit.csv"
+  ablation_results: "results/ablation_results.csv"
 
 evaluation:
   train_end: "2018-12-31"

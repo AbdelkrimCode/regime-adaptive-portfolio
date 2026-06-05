@@ -2,7 +2,11 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import os
+from config import load_config
 
+
+CFG = load_config()
 REGIME_COLORS = {
     "Bull":     "#2ecc71",
     "Bear":     "#e74c3c",
@@ -91,9 +95,10 @@ def run():
     plot_regime_overlay(backtest, regimes, ax=axes[2])
     
     plt.tight_layout()
-    plt.savefig("data/charts.png", dpi=150, bbox_inches="tight")
-    plt.show()
-    print("Saved to data/charts.png")
+    os.makedirs(os.path.dirname(CFG["paths"]["charts"]), exist_ok=True)
+    plt.savefig(CFG["paths"]["charts"], dpi=150, bbox_inches="tight")
+    plt.close()
+    print(f"Saved to {CFG['paths']['charts']}")
 
 if __name__ == "__main__":
     run()

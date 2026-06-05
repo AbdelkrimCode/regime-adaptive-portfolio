@@ -157,7 +157,7 @@ def select_n_states(features: np.ndarray, candidate_states: list[int] | None = N
 
 def plot_state_selection(scores_df: pd.DataFrame, output_path: str | None = None) -> None:
     if output_path is None:
-        output_path = "data/state_selection.png"
+        output_path = CFG["paths"]["state_selection"]
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
 
@@ -284,7 +284,9 @@ def walk_forward_regimes(df: pd.DataFrame) -> pd.DataFrame:
 
     return result
 
-def audit_walk_forward(output_path: str = "data/walk_forward_audit.csv") -> pd.DataFrame:
+def audit_walk_forward(output_path: str | None = None) -> pd.DataFrame:
+    if output_path is None:
+        output_path = CFG["paths"]["walk_forward_audit"]
     df = load_features()
 
     retrain_dates = pd.date_range(

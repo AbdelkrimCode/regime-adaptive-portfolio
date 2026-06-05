@@ -13,7 +13,7 @@ from config import load_config
 
 CFG = load_config()
 
-RESULTS_PATH = "data/ablation_results.csv"
+RESULTS_PATH = CFG["paths"]["ablation_results"]
 TEST_START   = CFG["evaluation"]["test_start"]
 
 FEATURE_SETS = {

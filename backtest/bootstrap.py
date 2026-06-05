@@ -61,7 +61,10 @@ def summarize(bootstrap_df: pd.DataFrame) -> dict:
         "significant_at_95":  p_value < 0.05,
     }
 
-def plot_bootstrap(bootstrap_df: pd.DataFrame, output_path: str = "data/bootstrap.png") -> None:
+def plot_bootstrap(bootstrap_df: pd.DataFrame, output_path: str | None = None) -> None:
+    from config import load_config
+    if output_path is None:
+        output_path = load_config()["paths"]["bootstrap"]
     import matplotlib.pyplot as plt
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
@@ -87,7 +90,10 @@ def plot_bootstrap(bootstrap_df: pd.DataFrame, output_path: str = "data/bootstra
 
 
 
-def run(output_path: str = "data/bootstrap.png") -> dict:
+def run(output_path: str | None = None) -> dict:
+    from config import load_config
+    if output_path is None:
+        output_path = load_config()["paths"]["bootstrap"]
     returns = pd.read_parquet("data/processed/returns.parquet")
     backtest = pd.read_parquet("data/backtest_results.parquet")
 
