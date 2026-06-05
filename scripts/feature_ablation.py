@@ -67,6 +67,14 @@ def main() -> None:
     df = pd.DataFrame(results)
     print("\n=== Feature Ablation Results ===")
     print(df.to_string(index=False))
+    prices = fetch_prices()
+    returns = compute_returns(prices)
+    features = compute_features(returns,
+        vol_window=CFG["data"]["vol_window"],
+        corr_window=CFG["data"]["corr_window"])
+    features.to_parquet(CFG["paths"]["features"])
+    returns.to_parquet(CFG["paths"]["returns"])
+    print("\nBaseline features restored.")
 
 if __name__ == "__main__":
     main()
