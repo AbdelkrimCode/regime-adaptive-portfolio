@@ -5,6 +5,7 @@ from config import load_config
 
 CFG = load_config()
 TRADING_DAYS = CFG["market"]["trading_days"]
+MAX_POSITION = CFG["optimizer"]["max_position"]
 
 from sklearn.covariance import LedoitWolf
 
@@ -21,7 +22,8 @@ def risk_parity(returns: pd.DataFrame) -> np.ndarray:
         cp.quad_form(w, sigma) - (1/n) * cp.sum(cp.log(w))
     )
     
-    constraints = [w >= 0.01]
+
+    constraints = [w >= 0.01, w <= MAX_POSITION]
     
     prob = cp.Problem(objective, constraints)
     prob.solve()

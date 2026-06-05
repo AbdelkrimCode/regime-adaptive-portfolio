@@ -21,7 +21,8 @@ def min_variance(returns: pd.DataFrame) -> np.ndarray:
     
     constraints = [
         cp.sum(w) == 1,
-        w >= 0
+        w >= 0,
+        w <= CFG["optimizer"]["max_position"]
     ]
     
     prob = cp.Problem(objective, constraints)
