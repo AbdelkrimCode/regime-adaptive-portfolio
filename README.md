@@ -439,7 +439,7 @@ pytest tests/
 
 **Gaussian emission assumption violated.** Jarque-Bera tests reject normality for all four regimes (p≈0). Bear regime kurtosis is 14.3 — extreme fat tails. A Student-t HMM would be more appropriate but is not available in hmmlearn.
 
-**Sharpe outperformance not significant.** The bootstrap p-value is 0.376 — the Sharpe difference is indistinguishable from zero. The strategy's genuine edge is drawdown control and volatility compression.
+**Sharpe outperformance not significant.** The paired block bootstrap p-value is 0.477 — the Sharpe difference is indistinguishable from zero.
 
 **Forward-filter performance cost.** Replacing Viterbi with forward-filter reduces full-sample Sharpe from 0.562 to 0.453. Viterbi's within-window smoothing produced better labels in hindsight. Forward-filter is correct; the v6 numbers are what a live system would have achieved.
 
@@ -457,9 +457,8 @@ pytest tests/
 
 **State labeling uses first feature only.** `label_states()` ranks states on SPY return mean only. A composite ranking was tested and reverted — it produced worse out-of-sample results despite sounder theory.
 
-**Risk parity is an approximation.** The Bear regime optimizer minimizes `quad_form(w, sigma) - (1/n)*sum(log(w))` with `w >= 0.01` and no sum-to-one constraint, normalizing post-hoc. This is the Spinu (2013) log-barrier surrogate — standard practice, but it does not guarantee true equal risk contribution.
+**Risk parity is an approximation.** The Bear regime optimizer minimizes `quad_form(w, sigma) - (1/n)*sum(log(w))` with `w >= 0.01` and `sum(w) == 1` enforced as a hard constraint. This is the Spinu (2013) log-barrier surrogate — standard practice, but it does not guarantee true equal risk contribution.
 
-**Bootstrap independence assumption.** Portfolio and SPY are resampled with independent block offsets, destroying cross-series correlation. A paired bootstrap would be more appropriate.
 
 **Asset universe.** Limited to 8 ETFs. Transaction costs modeled at 2bps — not accounting for market impact at scale.
 
