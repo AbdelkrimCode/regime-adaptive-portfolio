@@ -14,6 +14,7 @@ N_SIMULATIONS = CFG["stress_test"]["n_simulations"]
 CONFIDENCE    = CFG["stress_test"]["confidence"]
 VIX_THRESHOLD = CFG["stress_test"]["vix_threshold"]
 RANDOM_STATE  = CFG["hmm"]["random_state"]
+BLOCK_SIZE = CFG["stress_test"]["block_size"]
 
 def compute_var(returns: pd.Series, confidence: float = CONFIDENCE) -> float:
     return float(np.percentile(returns, (1 - confidence) * 100))
@@ -56,6 +57,51 @@ def monte_carlo_sharpe(returns: pd.Series, rf: pd.Series, n_sim: int = N_SIMULAT
         "ci_upper": round(float(np.percentile(sharpes, 97.5)), 4),
     }
 
+def paired_block_bootstrap(
+    port_returns: pd.Series,
+    spy_returns: pd.Series,
+    rf: pd.Series,
+    block_size: int = BLOCK_SIZE,
+    n_sim: int = N_SIMULATIONS,
+) -> dict:
+    rf_aligned = rf.reindex(port_returns.index).ffill().fillna(0)
+
+    mean_rf = float(rf_aligned.mean())
+
+    def sharpe(returns: np.ndarray) -> float:
+        excess = returns - mean_rf
+        return float(excess.mean() / excess.std() * np.sqrt(252)) if excess.std() > 0 else 0.0
+
+    d_observed = sharpe(port_returns.values) - sharpe(spy_returns.values)
+
+    rng = np.random.default_rng(RANDOM_STATE)
+    n = len(port_returns)
+    n_blocks = n // block_size
+
+    d_boot = []
+    for _ in range(n_sim):
+        block_starts = rng.integers(0, n - block_size, size=n_blocks)
+        indices = np.concatenate([
+            np.arange(start, start + block_size) for start in block_starts
+        ])
+        indices = indices[:n]
+
+        port_sample = port_returns.values[indices]
+        spy_sample = spy_returns.values[indices]
+
+        d = sharpe(port_sample) - sharpe(spy_sample)
+        d_boot.append(d)
+
+    d_boot = np.array(d_boot)
+    p_value = float(np.mean(d_boot >= d_observed))
+
+    return {
+        "d_observed": round(d_observed, 4),
+        "p_value":    round(p_value, 4),
+        "ci_lower":   round(float(np.percentile(d_boot, 2.5)), 4),
+        "ci_upper":   round(float(np.percentile(d_boot, 97.5)), 4),
+    }
+
 def run_stress_tests() -> None:
     print("=" * 50)
     print("  Stress Test Analysis")
@@ -88,6 +134,12 @@ def run_stress_tests() -> None:
     print(f"  Mean Sharpe:  {mc['mean']}")
     print(f"  Std:          {mc['std']}")
     print(f"  95% CI:       [{mc['ci_lower']}, {mc['ci_upper']}]")
+
+    print("\n--- Paired Block Bootstrap (1000 paths) ---")
+    pb = paired_block_bootstrap(port_returns, spy_returns, rf)
+    print(f"  Observed Difference: {pb['d_observed']}")
+    print(f"  P-Value:             {pb['p_value']}")
+    print(f"  95% CI:              [{pb['ci_lower']}, {pb['ci_upper']}]")
 
 if __name__ == "__main__":
     run_stress_tests()
