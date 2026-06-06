@@ -52,3 +52,4 @@ stress_test:
   n_simulations: 1000
   confidence: 0.95
   vix_threshold: 30.0
+  block_size: 20
