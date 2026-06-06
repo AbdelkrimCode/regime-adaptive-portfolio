@@ -82,12 +82,6 @@ def fit_hmm_with_n(features_scaled: np.ndarray, n_states: int) -> tuple[Gaussian
     model = _fit_hmm_core(features_scaled, n_states)
     return model, None
 
-def fit_hmm_with_states(features: np.ndarray, n_states: int) -> tuple[GaussianHMM | None, StandardScaler]:
-    scaler = StandardScaler()
-    features_scaled = scaler.fit_transform(features)
-    model, _ = fit_hmm_with_n(features_scaled, n_states)
-    return model, scaler
-
 def _fit_fold(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
@@ -95,11 +89,15 @@ def _fit_fold(
     next_date: pd.Timestamp,
     features_cols: list[str]
 ) -> tuple[pd.DataFrame, dict] | None:
+    
     train_features = train_df[features_cols].values
-    best_n = select_n_states(train_features, candidate_states=[2, 3, 4])["bic"].idxmin()
+    scaler = StandardScaler()
+    train_scaled = scaler.fit_transform(train_features)
+
+    best_n = select_n_states(train_scaled, candidate_states=[2, 3, 4])["bic"].idxmin()
     print(f"  Selected n_states={best_n} for fold {retrain_date.date()}")
 
-    model, scaler = fit_hmm_with_states(train_features, best_n)
+    model, _ = fit_hmm_with_n(train_scaled, best_n)
     if model is None:
         return None
 
@@ -136,13 +134,11 @@ def compute_aic_bic(model: GaussianHMM, features_scaled: np.ndarray, n_features:
     bic = -2 * log_likelihood + np.log(n_samples) * n_params
     return aic, bic
 
-def select_n_states(features: np.ndarray, candidate_states: list[int] | None = None) -> pd.DataFrame:
+def select_n_states(features_scaled: np.ndarray, candidate_states: list[int] | None = None) -> pd.DataFrame:
     if candidate_states is None:
         candidate_states = [2, 3, 4, 5]
 
-    scaler = StandardScaler()
-    features_scaled = scaler.fit_transform(features)
-    n_features = features.shape[1]
+    n_features = features_scaled.shape[1]
 
     records = []
     for n in candidate_states:
@@ -369,7 +365,9 @@ if __name__ == "__main__":
     train_end = CFG["evaluation"]["train_end"]
     df_train = df.loc[:train_end]
     features = df_train[["spy_return", "spy_vol", "mean_corr"]].values
-    scores = select_n_states(features)
+    scaler = StandardScaler()
+    features_scaled = scaler.fit_transform(features)
+    scores = select_n_states(features_scaled)
     print(scores)
     plot_state_selection(scores)
     print("\nTransition Matrix:")
