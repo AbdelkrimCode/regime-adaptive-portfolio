@@ -23,7 +23,11 @@ def risk_parity(returns: pd.DataFrame) -> np.ndarray:
     )
     
 
-    constraints = [w >= 0.01, w <= MAX_POSITION]
+    constraints = [
+    cp.sum(w) == 1,
+    w >= 0.01,
+    w <= MAX_POSITION,
+]
     
     prob = cp.Problem(objective, constraints)
     prob.solve()
@@ -31,5 +35,6 @@ def risk_parity(returns: pd.DataFrame) -> np.ndarray:
     if w.value is None:
         return np.ones(n) / n
     
-    weights = w.value / np.sum(w.value)
+    weights = np.clip(w.value, 0, None)
+    weights = weights / np.sum(weights)
     return weights
