@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from backtest.metrics import compute_all
+from data.risk_free import fetch_risk_free
 
 BLOCK_LENGTH = 20
 N_ITERATIONS = 1000
@@ -23,7 +24,8 @@ def run_bootstrap(
     benchmark_returns: pd.Series,
     block_length: int = BLOCK_LENGTH,
     n_iterations: int = N_ITERATIONS,
-    random_state: int = RANDOM_STATE
+    random_state: int = RANDOM_STATE,
+    rf: pd.Series | None = None
 ) -> pd.DataFrame:
     rng = np.random.default_rng(random_state)
     records = []
@@ -35,8 +37,8 @@ def run_bootstrap(
         port_equity = (1 + port_sample).cumprod()
         bench_equity = (1 + bench_sample).cumprod()
 
-        port_metrics = compute_all(port_sample, port_equity)
-        bench_metrics = compute_all(bench_sample, bench_equity)
+        port_metrics = compute_all(port_sample, port_equity, rf=rf)
+        bench_metrics = compute_all(bench_sample, bench_equity, rf=rf)
 
         records.append({
             "port_sharpe":  port_metrics["sharpe_ratio"],
@@ -100,9 +102,10 @@ def run(output_path: str | None = None) -> dict:
     common = returns.index.intersection(backtest.index)
     spy_returns = returns.loc[common, "SPY"]
     port_returns = backtest.loc[common, "portfolio_return"]
+    rf = fetch_risk_free()
 
     print("  Running block bootstrap (1000 iterations)...")
-    bootstrap_df = run_bootstrap(port_returns, spy_returns)
+    bootstrap_df = run_bootstrap(port_returns, spy_returns, rf=rf)
     summary = summarize(bootstrap_df)
     plot_bootstrap(bootstrap_df, output_path)
 
