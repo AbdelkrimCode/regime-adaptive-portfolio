@@ -17,6 +17,7 @@ OPTIMIZER_MAP = {
 }
 
 min_history = CFG["hmm"]["min_train_days"] // 2
+CONCENTRATION_GUARD = 0.99
 
 def get_weights(regime: str, returns: pd.DataFrame) -> np.ndarray:
     optimizer = OPTIMIZER_MAP[regime]
@@ -49,7 +50,7 @@ def compute_weights(regimes_df: pd.DataFrame, returns: pd.DataFrame) -> pd.DataF
                     raw = get_weights(label, available_returns)
                 raw = np.clip(raw, 0, None)
                 raw = raw / np.sum(raw)
-                if np.max(raw) > 0.99:
+                if np.max(raw) > CONCENTRATION_GUARD:
                         raw = np.ones(len(assets)) / len(assets)
                 cached_weights[label] = raw
             current_regime = regime
