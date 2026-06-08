@@ -1,6 +1,6 @@
 # Regime Adaptive Portfolio — v6
 
-Algorithmic portfolio optimizer combining Hidden Markov Model regime detection with convex optimization. v6 fixes within-window Viterbi lookahead, documents label permutation handling, and corrects the held-out optimizer starvation bug in `run_period()`.
+Algorithmic portfolio optimizer combining Hidden Markov Model regime detection with convex optimization.
 
 ![Python](https://img.shields.io/badge/python-3.10+-blue) ![License](https://img.shields.io/badge/license-MIT-green) ![Tests](https://github.com/AbdelkrimCode/regime-adaptive-portfolio/actions/workflows/tests.yml/badge.svg)
 
@@ -9,7 +9,7 @@ Algorithmic portfolio optimizer combining Hidden Markov Model regime detection w
 ## How It Works
 
 ### 1. Regime Detection
-A Gaussian HMM trained on three features — SPY log returns, rolling volatility, and rolling mean pairwise correlation — labels each trading day as Bull, Bear, Sideways, or Crash. Feature windows (`vol_window`, `corr_window`) are configurable via `config.yaml` (defaults: 21-day vol, 63-day correlation). The model is retrained quarterly using an expanding window to prevent lookahead bias. Walk-forward retraining is the default.
+A Gaussian HMM trained on three features — SPY log returns, rolling volatility, and rolling mean pairwise correlation — labels each trading day as Bull, Bear, Sideways, or Crash. Feature windows default to 21-day vol and 63-day correlation, defined as constants in `data/process.py`. The model is retrained quarterly using an expanding window to prevent lookahead bias. Walk-forward retraining is the default.
 
 State ordering is determined by ranking state means on the return feature after every retrain:
 - Lowest mean return → Crash
@@ -19,12 +19,12 @@ State ordering is determined by ranking state means on the return feature after 
 
 **Label stability across retrains:** HMM states have no intrinsic identity — state 0 in Q1 might correspond to "Bear" and state 0 in Q2 might correspond to "Bull". This implementation avoids label permutation by assigning regime names based on mean return rank, not state index. After every quarterly retrain, states are sorted by their mean SPY return and relabeled consistently. The optimizer selected for each day depends on the semantic label, not the raw state index.
 
-### 2. Nested CV for State Selection (v3/v4)
+### 2. BIC State Selection
 At every quarterly fold, candidate state counts [2, 3, 4] are each fitted on the full training window and scored by BIC. The state count minimizing BIC is selected independently per fold.
 
 **Implementation note:** When a fold selects n=2, it emits only `p_bull` and `p_bear` posteriors. Concatenating folds with different state counts produces NaN entries in the unused posterior columns. The blending layer handles this explicitly — NaN posterior probabilities are skipped rather than propagated.
 
-### 3. Causal Forward-Filter Posteriors (v6)
+### 3. Causal Forward-Filter Posteriors
 Prior to v6, regime posteriors were computed using the Viterbi algorithm and `predict_proba()` — both of which use forward and backward passes over the entire observation window. This introduces within-window lookahead: the regime label assigned to day T uses data through the end of the training window, not just through day T.
 
 v6 replaces both with a manual forward-filter (`forward_filter()` in `hmm.py`). The filtered posterior `P(state_t | observations_1:t)` is computed using only the forward pass — strictly causal at every time step:
@@ -34,12 +34,12 @@ alpha_t[i] = P(o_t | state=i) * sum_j( alpha_{t-1}[j] * A[j,i] )
 filtered_posterior_t = alpha_t / sum(alpha_t)
 ```
 
-**Performance impact:** Forward filtering reduces full-sample Sharpe (0.562 → 0.453) because Viterbi's within-window smoothing produced better labels in hindsight. The v6 numbers reflect what a truly causal system would have produced. Methodological correctness is preferred over inflated backtested results.
+**Performance impact:** Forward filtering reduces full-sample Sharpe relative to Viterbi because Viterbi's within-window smoothing produced better labels in hindsight. The v7 numbers reflect what a truly causal system would have produced. Methodological correctness is preferred over inflated backtested results.
 
-### 4. Parallelized Fold Execution (v4)
-Each quarterly fold is independent — no shared mutable state. Folds execute via `joblib.Parallel`. `n_jobs=1` in `config.yaml` keeps the default deterministic; the sensitivity sweep script overrides to `n_jobs=8` for speed.
+### 4. Parallelized Fold Execution
+Each quarterly fold is independent — no shared mutable state. Folds execute via `joblib.Parallel`. `n_jobs=1` in `config.yaml` keeps the default deterministic; the sensitivity sweep passes `n_jobs=-1` explicitly to `walk_forward_regimes()` for speed.
 
-### 5. Posterior Probability Blending (v2)
+### 5. Posterior Probability Blending
 v1 used hard regime labels — each day was assigned exactly one regime. This amplifies turnover at transition boundaries and ignores the HMM's uncertainty.
 
 v2 uses filtered posteriors for every day:
@@ -63,8 +63,8 @@ Four convex optimizers, one per regime. On every regime transition and every ret
 
 All optimizers except Crash use Ledoit-Wolf shrinkage on the covariance matrix. Weights constrained to [0, 1] — no shorting, no leverage. Safe-haven assets configurable via `config.yaml`.
 
-### 7. Regime Diagnostics (v3)
-Run-length statistics from the walk-forward label sequence (v6 results):
+### 7. Regime Diagnostics
+Run-length statistics from the walk-forward label sequence:
 
 | Regime | Count | Mean (days) | Median (days) | Min | Max |
 |---|---|---|---|---|---|
@@ -83,7 +83,7 @@ Empirical transition matrix (% of exits):
 | Crash | 35.3% | 44.1% | 20.6% | — |
 
 ### 8. Backtest
-Lookahead-free simulation applying day-t weights to day t+1 returns. Transaction costs at 2bps per unit of turnover applied consistently to portfolio and all benchmarks. Average daily turnover: 4.50% (implied annual cost: 0.23%).
+Lookahead-free simulation applying day-t weights to day t+1 returns. Transaction costs at 2bps per unit of turnover applied consistently to portfolio and all benchmarks. Average daily turnover: 5.07% (implied annual cost: 0.26%).
 
 Sharpe ratios use a time-varying risk-free rate sourced from the 3-month T-bill (^IRX via yfinance). The same time-varying rate is used in the max-Sharpe optimizer. The `run_period()` function passes the full returns history to `compute_weights()` — allowing the optimizer to use all available data up to each date — and slices only at simulation time.
 
@@ -91,81 +91,87 @@ Sharpe ratios use a time-varying risk-free rate sourced from the 3-month T-bill 
 
 ## Results
 
-The primary claim of this strategy is **drawdown control**, not Sharpe outperformance. The Sharpe difference vs SPY (0.453 vs 0.433) is statistically indistinguishable from zero (bootstrap p=0.376). The defensible results are:
+The primary claim of this strategy is **drawdown control**, not Sharpe outperformance. The Sharpe difference vs SPY (0.432 vs 0.433) is statistically indistinguishable from zero (bootstrap p=0.507). The defensible results are:
 
-- Max drawdown **-26.06% vs SPY -60.39%** — 57% reduction in peak-to-trough loss
+- Max drawdown **-27.59% vs SPY -60.39%** — 54% reduction in peak-to-trough loss
 - Calmar ratio **0.182 vs SPY 0.137** — better return per unit of drawdown
-- GFC max drawdown **-13.34% vs SPY -56.38%** — strategy worked when it mattered most
+- Volatility **9.11% vs SPY 19.58%** — dramatically lower realized risk
 
 ### Full Period (2006–2024)
 
 | Metric | Portfolio | SPY | Equal Weight | 60/40 | Momentum | Risk Parity |
 |---|---|---|---|---|---|---|
-| Annualized Return | 4.75% | 8.27% | 5.90% | 6.80% | 5.67% | 4.55% |
-| Annualized Volatility | 7.90% | 19.58% | 11.19% | 11.20% | 13.22% | 7.58% |
-| Sharpe Ratio | 0.453 | 0.433 | 0.443 | 0.518 | 0.395 | 0.455 |
-| Max Drawdown | **-26.06%** | -60.39% | -35.29% | -36.22% | -29.65% | -24.95% |
-| Calmar Ratio | **0.182** | 0.137 | 0.167 | 0.188 | 0.191 | 0.182 |
+| Annualized Return | 5.02% | 8.27% | 5.90% | 6.80% | 5.67% | 5.38% |
+| Annualized Volatility | 9.11% | 19.58% | 11.19% | 11.20% | 13.22% | 11.04% |
+| Sharpe Ratio | 0.432 | 0.433 | 0.443 | 0.518 | 0.395 | 0.414 |
+| Max Drawdown | **-27.59%** | -60.39% | -35.29% | -36.22% | -29.65% | -34.24% |
+| Calmar Ratio | **0.182** | 0.137 | 0.167 | 0.188 | 0.191 | 0.157 |
 
-The Sharpe difference over SPY is 0.020 — not statistically significant (bootstrap 95% CI straddles zero, p=0.376). The genuine edge is volatility compression (7.90% vs 19.58%) and drawdown protection.
+The Sharpe difference over SPY is -0.001 — not statistically significant (bootstrap 95% CI straddles zero, p=0.507). The genuine edge is volatility compression (9.11% vs 19.58%) and drawdown protection.
 
 ### Held-Out Test Period (2019–2024)
 
 | Metric | Portfolio | SPY |
 |---|---|---|
-| Annualized Return | 4.61% | 14.86% |
-| Annualized Volatility | 8.68% | 19.91% |
-| Sharpe Ratio | 0.292 | 0.677 |
-| Max Drawdown | -26.06% | -35.75% |
-| Calmar Ratio | 0.177 | 0.416 |
+| Annualized Return | 6.74% | 14.86% |
+| Annualized Volatility | 9.40% | 19.91% |
+| Sharpe Ratio | 0.492 | 0.677 |
+| Max Drawdown | -27.59% | -35.75% |
+| Calmar Ratio | 0.244 | 0.416 |
 
-The held-out Sharpe (0.292) lags SPY (0.677). A frozen model — trained once on 2006–2018 and never retrained — produces Sharpe 0.324 on the same period, slightly outperforming the walk-forward variant. This confirms the strategy generalizes: quarterly retraining during the test period does not inflate results. The walk-forward default is retained for live deployment correctness; the frozen result is the conservative out-of-sample estimate.
+The held-out Sharpe (0.492) lags SPY (0.677). A frozen model — trained once on 2006–2018 and never retrained — produces Sharpe 0.505 on the same period, slightly outperforming the walk-forward variant. This confirms the strategy generalizes: quarterly retraining during the test period does not inflate results. The walk-forward default is retained for live deployment correctness; the frozen result is the conservative out-of-sample estimate.
 
 | Metric | Walk-Forward | Frozen Model | SPY |
 |---|---|---|---|
-| Annualized Return | 4.61% | 4.98% | 14.86% |
-| Annualized Volatility | 8.68% | 8.71% | 19.91% |
-| Sharpe Ratio | 0.292 | 0.324 | 0.677 |
-| Max Drawdown | -26.06% | -25.5% | -35.75% |
-| Calmar Ratio | 0.177 | 0.195 | 0.416 |
+| Annualized Return | 6.74% | 6.99% | 14.86% |
+| Annualized Volatility | 9.40% | 9.50% | 19.91% |
+| Sharpe Ratio | 0.492 | 0.505 | 0.677 |
+| Max Drawdown | -27.59% | -27.83% | -35.75% |
+| Calmar Ratio | 0.244 | 0.251 | 0.416 |
 
 ### Subperiod Analysis
 
 | Metric | Portfolio | SPY |
 |---|---|---|
 | **GFC (2008–2009)** | | |
-| Annualized Return | 0.05% | -15.46% |
-| Max Drawdown | **-13.34%** | -56.38% |
-| Calmar Ratio | 0.004 | -0.274 |
+| Annualized Return | -5.29% | -15.46% |
+| Annualized Volatility | 16.78% | 34.70% |
+| Sharpe Ratio | -0.295 | -0.345 |
+| Max Drawdown | **-22.67%** | -56.38% |
+| Calmar Ratio | -0.234 | -0.274 |
 | **Low-vol bull (2013–2019)** | | |
-| Annualized Return | 4.53% | 13.26% |
-| Max Drawdown | -7.72% | -19.82% |
-| Calmar Ratio | **0.587** | 0.669 |
+| Annualized Return | 5.64% | 13.26% |
+| Annualized Volatility | 5.22% | 12.83% |
+| Sharpe Ratio | 0.933 | 1.003 |
+| Max Drawdown | -7.02% | -19.82% |
+| Calmar Ratio | **0.804** | 0.669 |
 | **COVID+rates (2020–2024)** | | |
-| Annualized Return | 2.73% | 11.83% |
-| Max Drawdown | -26.06% | -35.75% |
-| Calmar Ratio | 0.105 | 0.331 |
+| Annualized Return | 4.64% | 11.83% |
+| Annualized Volatility | 10.07% | 21.09% |
+| Sharpe Ratio | 0.259 | 0.528 |
+| Max Drawdown | -27.59% | -35.75% |
+| Calmar Ratio | 0.168 | 0.331 |
 
-**GFC:** The strategy's clearest result — near-zero return while SPY lost over half its value. Max drawdown -13.34% vs SPY -56.38%.
+**GFC:** The strategy's clearest result — portfolio lost 5.29% annualized while SPY lost 15.46%. Max drawdown -22.67% vs SPY -56.38%. The causal forward-filter was slow to detect the crash onset, limiting but not eliminating protection.
 
-**Low-vol bull:** Calmar ratio 0.587 vs SPY 0.669 — close to SPY on return-per-drawdown during the bull market. Cost is absolute return (4.53% vs 13.26%).
+**Low-vol bull:** Calmar ratio 0.804 vs SPY 0.669 — the strategy outperforms SPY on return-per-drawdown during the bull market. Cost is absolute return (5.64% vs 13.26%).
 
-**COVID+rates:** Weak. The 2020 crash was too fast for a causal HMM to detect in time. The 2022 rate-driven bear hurt bonds and equities simultaneously, limiting the flight-to-safety allocation.
+**COVID+rates:** Weak. The 2020 crash was too fast for a causal HMM to detect in time. The 2022 rate-driven bear hit bonds and equities simultaneously, limiting the flight-to-safety allocation.
 
 ### Bootstrap Significance Test
 
-Block bootstrap with 1000 iterations, 20-day block length:
+Block bootstrap with 1000 iterations, 20-day block length, time-varying risk-free rate applied consistently:
 
 | Statistic | Value |
 |---|---|
-| Mean Sharpe Difference | 0.020 |
-| 95% CI | [-0.44, 0.48] |
-| p-value | 0.376 |
+| Mean Sharpe Difference | -0.001 |
+| 95% CI | [-0.62, 0.61] |
+| p-value | 0.507 |
 | Significant at 95% | No |
 
 Sharpe outperformance is not statistically significant. The drawdown reduction is the defensible claim.
 
-### Window Sensitivity Sweep (v4)
+### Window Sensitivity Sweep
 
 Full pipeline rerun across `VOL_WINDOW ∈ {10, 21, 42}` × `CORR_WINDOW ∈ {42, 63, 126}`:
 
@@ -182,7 +188,7 @@ Full pipeline rerun across `VOL_WINDOW ∈ {10, 21, 42}` × `CORR_WINDOW ∈ {42
 
 `CORR_WINDOW=63` consistently produces the best or near-best held-out Sharpe. Default parameters sit in a stable region — not cherry-picked.
 
-### Bootstrap Block-Length Sensitivity (v4)
+### Bootstrap Block-Length Sensitivity
 
 | Block Length | p-value | Mean Diff | 95% CI |
 |---|---|---|---|
@@ -213,35 +219,32 @@ vol_10 wins in-sample but underperforms out-of-sample. skew_kurt collapses out-o
 
 | Test | Portfolio | SPY |
 |---|---|---|
-| VaR (95%) | -0.77% | -1.83% |
-| CVaR (95%) | -1.17% | -3.06% |
-| Sharpe during VIX > 30 | -0.363 | -2.000 |
-| Monte Carlo mean Sharpe (1000 paths) | 0.463 ± 0.238 | — |
-| Monte Carlo 95% CI | [-0.005, 0.924] | — |
+| VaR (95%) | -0.82% | -1.86% |
+| CVaR (95%) | -1.37% | -3.09% |
+| Sharpe during VIX > 30 | -1.535 | -2.000 |
+| Monte Carlo mean Sharpe (1000 paths) | 0.450 ± 0.217 | — |
+| Monte Carlo 95% CI | [0.055, 0.912] | — |
 
-Tail risk is dramatically lower than SPY across all measures. Both strategies produce negative Sharpe during VIX > 30 periods — nobody wins in a crisis — but the portfolio loses far less per unit of risk. Monte Carlo mean (0.463) is consistent with the actual full-period Sharpe (0.453), confirming no estimation bias.
+Tail risk is dramatically lower than SPY across all measures. Both strategies produce negative Sharpe during VIX > 30 periods — nobody wins in a crisis — but the portfolio loses far less per unit of risk. Monte Carlo mean (0.450) is consistent with the actual full-period Sharpe (0.432), confirming no estimation bias.
 
 ---
 
-## Post-v6 Improvements
+## Post-v6 Bug Fixes
 
-| Change | Before | After |
+| Fix | Issue | Resolution |
 |---|---|---|
-| Crash optimizer | Equal-weight over safe havens | Inverse-vol weighting — adaptive to current volatility |
-| Feature windows | Hardcoded in process.py | Configurable via config.yaml |
-| Output paths | Scattered in data/ | Centralized in results/ and results/figures/ |
-| Walk-forward leakage | Unverified | Audited — 0 leakage across 74 folds |
-| Feature justification | Unjustified | Ablation study confirms baseline robustness |
-| Frozen out-of-sample | Not tested | Frozen Sharpe 0.324 — strategy generalizes |
-| Stress profile | Missing | VaR, CVaR, VIX-conditional, Monte Carlo documented |
-| PCA regime validation | Missing | Regimes overlap in dense region; separation only in tail |
-| Position limits | None — concentration up to 99% | 60% per-asset cap in min-variance and risk-parity |
-| CI/CD | None | GitHub Actions — pytest on every push to main |
-| Known limitations | Partial | Comprehensively documented |
-
-### Negative Result: Macro Features
-
-VIX and yield curve slope (5Y-3M spread) were added as additional HMM features to address SPY circularity. Full-sample Sharpe improved (0.444 → 0.558) but held-out Sharpe collapsed (0.291 → 0.135). The macro features overfitted — the HMM learned to associate VIX levels with regimes in the training period but this relationship did not generalize to 2019–2024. The 3-feature baseline was restored. This experiment confirms the feature ablation finding: in-sample improvement does not imply out-of-sample robustness.
+| feature_ablation.py restore block | KeyError on CFG["data"] — crashed on every completed ablation run | Read from FEATURE_SETS["baseline"] defined in the same file |
+| test_optimizers.py | Byte-for-byte duplicate of test_metrics.py — zero optimizer coverage | Replaced with 24 real optimizer tests |
+| bootstrap.py rf | Sharpe bootstrap computed with rf=None — inconsistent with pipeline | Thread time-varying rf through run_bootstrap() |
+| bootstrap.py + charts.py paths | Hardcoded parquet paths bypassed config.yaml | Replaced with CFG["paths"] throughout |
+| sensitivity_sweep n_jobs | CFG mutation never reached hmm.py — always ran with n_jobs=1 | Pass n_jobs explicitly to walk_forward_regimes() |
+| stress_tests monte_carlo | IID resampling destroyed autocorrelation structure | Replaced with block_resample() consistent with bootstrap.py |
+| main.py test_end | Dead variable set to train_end (wrong value, never used) | Removed |
+| min_variance.py | Solver output returned raw — tiny floating point negatives possible | Clip and renormalize before returning |
+| switcher.py | Magic number 0.99 hardcoded in concentration guard | Named constant CONCENTRATION_GUARD |
+| hmm.py forward_filter | No underflow guard at alpha[0] initialization | Apply same zero-sum guard as t>0 steps |
+| main.py transition matrix | Division by zero if a regime never transitions out | Replace 0 row sums with NaN before division |
+| benchmark.py | Hardcoded 126 in get_risk_parity_equity() | Read from CFG["hmm"]["min_train_days"] // 2 |
 
 ## v5 → v6 Improvements
 
@@ -253,9 +256,8 @@ VIX and yield curve slope (5Y-3M spread) were added as additional HMM features t
 | charts.py | KeyError on Crash regime | Crash added to REGIME_COLORS |
 | safe_haven_assets | Hardcoded in crash.py | Configurable via config.yaml |
 | select_n_states | Unused train/test split | Removed — BIC on full training data directly |
-| sensitivity_sweep | Global config mutation | Explicit n_jobs parameter |
+| sensitivity_sweep | Global config mutation (ineffective) | n_jobs passed explicitly to walk_forward_regimes() |
 | smoothing_days | Dead config key | Removed |
-| Performance impact | Held-out Sharpe 0.614 | Held-out Sharpe 0.292 — run_period fix removes optimizer inflation |
 
 ## v4 → v5 Improvements
 
@@ -266,7 +268,6 @@ VIX and yield curve slope (5Y-3M spread) were added as additional HMM features t
 | BIC scoring | On held-out 20% (wrong N) | On full training data |
 | Min-history threshold | Hardcoded 126 | References config |
 | fit_hmm duplication | Two near-identical functions | Unified via _fit_hmm_core() |
-| Test suite | 37 tests | 55 tests — optimizer + integration coverage |
 
 ## v3 → v4 Improvements
 
@@ -294,7 +295,7 @@ VIX and yield curve slope (5Y-3M spread) were added as additional HMM features t
 | Walk-forward | Optional | Default |
 | Risk-free rate | Static 4% | Time-varying ^IRX |
 | Benchmark costs | None | 2bps per turnover |
-| Significance testing | None | Block bootstrap, p=0.376 |
+| Significance testing | None | Block bootstrap |
 | Out-of-sample evaluation | None | Held-out 2019–2024 |
 
 ---
@@ -303,14 +304,14 @@ VIX and yield curve slope (5Y-3M spread) were added as additional HMM features t
 
 ```
 regime-adaptive-portfolio/
-├── config.yaml            # Centralized hyperparameters (HMM, backtest, market, optimizer, paths, evaluation, subperiods)
+├── config.yaml            # Centralized hyperparameters (HMM, backtest, market, optimizer, bootstrap, paths, evaluation, subperiods)
 ├── config.py              # YAML loader
 ├── data/
 │   ├── fetch.py           # Downloads adjusted close prices via yfinance
-│   ├── process.py         # Log returns, rolling volatility, rolling correlation (windows configurable via config.yaml)
+│   ├── process.py         # Log returns, rolling volatility, rolling correlation
 │   └── risk_free.py       # 3-month T-bill rate (^IRX) with daily conversion and caching
 ├── models/
-│   └── hmm.py             # Gaussian HMM, causal forward-filter, nested CV, parallelized walk-forward
+│   └── hmm.py             # Gaussian HMM, causal forward-filter, BIC state selection, parallelized walk-forward
 ├── optimization/
 │   ├── mean_var.py        # Mean-Variance max Sharpe (Bull) — time-varying RF
 │   ├── risk_parity.py     # Log-barrier risk parity approximation (Bear)
@@ -321,12 +322,12 @@ regime-adaptive-portfolio/
 │   ├── engine.py          # Simulation with transaction costs, correct period slicing
 │   ├── metrics.py         # Annualized return, volatility, Sharpe (time-varying RF), drawdown, Calmar
 │   ├── benchmark.py       # SPY, Equal Weight, 60/40, Momentum, Risk Parity — all cost-adjusted
-│   └── bootstrap.py       # Block bootstrap significance test
+│   └── bootstrap.py       # Block bootstrap significance test with time-varying RF
 ├── scripts/
-│   ├── sensitivity_sweep.py    # Window and bootstrap sensitivity analysis
+│   ├── sensitivity_sweep.py    # Window sensitivity analysis — n_jobs=-1 for speed
 │   ├── frozen_model_eval.py    # True out-of-sample evaluation — model frozen at 2018-12-31
 │   ├── feature_ablation.py     # Ablation study across feature sets and window sizes
-│   └── stress_tests.py         # VaR, CVaR, VIX-conditional Sharpe, Monte Carlo paths
+│   └── stress_tests.py         # VaR, CVaR, VIX-conditional Sharpe, block-resampled Monte Carlo
 ├── results/
 │   ├── figures/                # charts.png, bootstrap.png, pca_regimes.png, state_selection.png
 │   ├── sensitivity_results.csv
@@ -335,11 +336,11 @@ regime-adaptive-portfolio/
 ├── tests/
 │   ├── test_metrics.py    # 14 tests — metrics module
 │   ├── test_hmm.py        # 14 tests — HMM module
-│   ├── test_engine.py     # Backtest engine
-│   ├── test_optimizers.py # 14 tests — optimizer functions and compute_weights
+│   ├── test_engine.py     # 9 tests — backtest engine
+│   ├── test_optimizers.py # 24 tests — all four optimizers and compute_weights
 │   └── test_integration.py # 4 tests — end-to-end pipeline regression
 ├── visualization/
-│   └── charts.py          # Equity curves, drawdown, regime overlay, PCA regime separation
+│   └── charts.py          # Equity curves, drawdown, regime overlay
 └── main.py                # Full pipeline entry point
 ```
 
@@ -368,7 +369,7 @@ regime-adaptive-portfolio/
 # Install dependencies
 pip install -r requirements.txt
 
-# Run full pipeline (causal forward-filter, nested CV, walk-forward default)
+# Run full pipeline (causal forward-filter, BIC state selection, walk-forward default)
 python main.py
 
 # Force HMM retrain from scratch
@@ -380,7 +381,7 @@ python main.py --no-walk-forward
 # Skip chart generation
 python main.py --no-charts
 
-# Run sensitivity sweep (VOL_WINDOW × CORR_WINDOW × BLOCK_LENGTH)
+# Run sensitivity sweep (VOL_WINDOW × CORR_WINDOW, parallelized)
 python scripts/sensitivity_sweep.py
 
 # Run frozen model out-of-sample evaluation (train ≤2018, test 2019–2024)
@@ -389,7 +390,7 @@ python scripts/frozen_model_eval.py
 # Run feature ablation study
 python scripts/feature_ablation.py
 
-# Run stress tests (VaR, CVaR, VIX-conditional, Monte Carlo)
+# Run stress tests (VaR, CVaR, VIX-conditional, block-resampled Monte Carlo)
 python scripts/stress_tests.py
 
 # Audit walk-forward leakage
@@ -409,7 +410,7 @@ pytest tests/
 
 **Why label states by mean return rank?** HMM state indices are arbitrary — they can permute across retraining windows. Sorting by mean SPY return after every retrain ensures Bull, Bear, Sideways, and Crash refer to the same economic concept across the full backtest period.
 
-**Why nested CV for state selection?** A globally fixed n=4 assumes the same model complexity is appropriate across all market environments. Nested CV allows early folds with limited data to select simpler models.
+**Why BIC state selection per fold?** A globally fixed n=4 assumes the same model complexity is appropriate across all market environments. Per-fold BIC selection allows early folds with limited data to select simpler models.
 
 **Why time-varying RF in both optimizer and metrics?** The 4% hurdle during 2009–2022 (near-zero rate era) distorted allocations. Using the same 3-month T-bill rate in both the optimizer and Sharpe computation ensures internal consistency.
 
@@ -425,54 +426,47 @@ pytest tests/
 
 **Why inverse-vol weighting for the Crash regime?** Equal-weight over safe havens ignores the fact that TLT is significantly more volatile than IEF. Inverse-vol allocation tilts toward the most stable safe haven at any given time — automatically reducing TLT exposure when bond volatility spikes (as in 2022) and increasing it during calm periods.
 
-**Why is walk-forward the default if frozen performs better out-of-sample?** Walk-forward is the correct methodology for live deployment — a real system would retrain as new data arrives. The frozen model is an evaluation tool that confirms generalization, not a deployment strategy. The fact that frozen slightly outperforms (0.324 vs 0.292) suggests the quarterly retraining frequency may be slightly too high, causing minor overfitting to recent noise.
+**Why is walk-forward the default if frozen performs better out-of-sample?** Walk-forward is the correct methodology for live deployment — a real system would retrain as new data arrives. The frozen model is an evaluation tool that confirms generalization, not a deployment strategy.
 
 ---
 
 ## Limitations
 
-**Regime separation is weak in feature space.** PCA of the three features (SPY return, volatility, mean correlation) projected to 2D shows heavy overlap between Bull, Bear, and Sideways in the dense central region. Clear separation exists only in the left tail — extreme negative return / high volatility events (Crash and severe Bear). This explains the non-significant bootstrap p-value (0.376) and weak held-out Sharpe: the model adds value at the extremes, not during normal regimes.
+**Regime separation is weak in feature space.** PCA of the three features (SPY return, volatility, mean correlation) projected to 2D shows heavy overlap between Bull, Bear, and Sideways in the dense central region. Clear separation exists only in the left tail — extreme negative return / high volatility events (Crash and severe Bear). This explains the non-significant bootstrap p-value (0.507) and moderate held-out Sharpe.
 
-**Expanding covariance window mixes regimes.** The optimizer uses `returns.loc[:date]` — an expanding window that grows from ~3,260 to ~4,780 days. Early folds use covariance estimates dominated by 2008 volatility (60% annualized); late folds mix that with 2024 volatility (15% annualized). A rolling window would be more stationary but introduces instability in small samples. This is a known tradeoff; expanding window is retained as the default.
+**Expanding covariance window mixes regimes.** The optimizer uses `returns.loc[:date]` — an expanding window that grows from ~3,260 to ~4,780 days. Early folds use covariance estimates dominated by 2008 volatility; late folds mix that with 2024 volatility. A rolling window would be more stationary but introduces instability in small samples.
 
-**Crash regime uses inverse-vol weighting over safe havens.** The Crash optimizer allocates inversely proportional to current volatility across IEF, TLT, and GLD — IEF typically receives ~54%, TLT ~25%, GLD ~21%. This is adaptive but still assumes safe havens are uncorrelated with equities. In 2022, all three sold off simultaneously with equities, limiting protection. A min-CVaR optimizer over the safe-haven subset would be more robust to correlation shocks.
+**Crash regime uses inverse-vol weighting over safe havens.** The Crash optimizer allocates inversely proportional to current volatility across IEF, TLT, and GLD. In 2022, all three sold off simultaneously with equities, limiting protection. A min-CVaR optimizer over the safe-haven subset would be more robust to correlation shocks.
 
 **Gaussian emission assumption violated.** Jarque-Bera tests reject normality for all four regimes (p≈0). Bear regime kurtosis is 14.3 — extreme fat tails. A Student-t HMM would be more appropriate but is not available in hmmlearn.
 
-**Sharpe outperformance not significant.** The paired block bootstrap p-value is 0.477 — the Sharpe difference is indistinguishable from zero.
+**Sharpe outperformance not significant.** The paired block bootstrap p-value is 0.507 — the Sharpe difference is indistinguishable from zero.
 
-**Forward-filter performance cost.** Replacing Viterbi with forward-filter reduces full-sample Sharpe from 0.562 to 0.453. Viterbi's within-window smoothing produced better labels in hindsight. Forward-filter is correct; the v6 numbers are what a live system would have achieved.
+**Forward-filter performance cost.** Replacing Viterbi with forward-filter reduces full-sample Sharpe because Viterbi's within-window smoothing produced better labels in hindsight. Forward-filter is correct; these numbers are what a live system would have achieved.
 
-**Feature preprocessing is backward-looking.** Rolling volatility (21-day) and rolling correlation (63-day) are computed as trailing windows on the full price history before the walk-forward loop. Both windows use only past data at each point — there is no forward-looking contamination. Features are precomputed and cached to parquet; the walk-forward loop reads this file but does not regenerate it mid-backtest.
+**Scaler fit twice per fold.** `select_n_states()` fits its own `StandardScaler` internally for BIC scoring, and the main fit path fits a second scaler on the same training data. Both produce identical transformations — no numerical consequence, but the redundancy could be eliminated.
 
-**Scaler fit twice per fold.** `select_n_states()` fits its own `StandardScaler` internally for BIC scoring, and `fit_hmm_with_states()` fits a second scaler on the same training data. Both produce identical transformations since the data and method are the same — no numerical consequence, but the redundancy could be eliminated.
-
-**Choppy Bull detection.** Median Bull run length is 4.5 days. The nested CV selecting n=2 on some folds collapses regimes, causing rapid label switching.
+**Choppy Bull detection.** Median Bull run length is 4.5 days. BIC selecting n=2 on some folds collapses regimes, causing rapid label switching.
 
 **COVID+rates weakness.** The 2020 crash was too fast for a causal HMM. The 2022 rate-driven bear hit bonds and equities simultaneously, limiting the flight-to-safety allocation.
 
-**SPY circularity.** SPY is both the regime-detection instrument (return and volatility features) and an investable asset in the portfolio. VIX and yield curve slope (5Y-3M spread) were tested as additional macro features to provide more orthogonal signal. Full-sample Sharpe improved but held-out Sharpe collapsed (0.291 → 0.135) — the macro features overfit to the training period. The 3-feature baseline was restored. True orthogonality would require a signal derived from a completely different data source (e.g. economic survey data, options market structure).
+**SPY circularity.** SPY is both the regime-detection instrument (return and volatility features) and an investable asset in the portfolio. VIX and yield curve slope (5Y-3M spread) were tested as additional macro features. Full-sample Sharpe improved but held-out Sharpe collapsed — the macro features overfitted. The 3-feature baseline was restored.
 
 **Mean return as signal.** The Mean-Variance optimizer uses sample mean returns — near-zero signal-to-noise at daily frequency. Shrinkage toward a factor model or Black-Litterman prior would be more robust.
 
 **State labeling uses first feature only.** `label_states()` ranks states on SPY return mean only. A composite ranking was tested and reverted — it produced worse out-of-sample results despite sounder theory.
 
-**Risk parity is an approximation.** The Bear regime optimizer minimizes `quad_form(w, sigma) - (1/n)*sum(log(w))` with `w >= 0.01` and `sum(w) == 1` enforced as a hard constraint. This is the Spinu (2013) log-barrier surrogate — standard practice, but it does not guarantee true equal risk contribution.
+**Risk parity is an approximation.** The Bear regime optimizer minimizes `quad_form(w, sigma) - (1/n)*sum(log(w))` — the Spinu (2013) log-barrier surrogate. Standard practice, but it does not guarantee true equal risk contribution.
 
+**Asset universe limited to 8 ETFs.** Transaction costs modeled at 2bps flat — not accounting for market impact at scale. A broader universe or factor-based selection could improve diversification.
 
-**Asset universe.** Limited to 8 ETFs. Transaction costs modeled at 2bps — not accounting for market impact at scale.
+**Markov assumption.** HMMs assume the current state depends only on the previous state. Markets exhibit momentum and mean-reversion at multiple horizons, violating this assumption.
 
-**Asset universe not systematically justified.** The portfolio invests in 8 ETFs — SPY, IEF, TLT, GLD, and four others. The selection follows a principled rationale (liquid, exchange-traded, low pairwise correlation, covering equity/rates/gold) but was not tested against alternatives. A broader universe or factor-based selection could improve diversification.
+**Position limits capped at 60% per asset.** Min-variance and risk-parity optimizers enforce a hard upper bound via CVXPY constraint. The max-Sharpe optimizer applies the cap post-normalization via a concentration guard.
 
-**Transaction costs modeled at 2bps flat.** This is reasonable for institutional ETF trading but conservative for daily rebalancing at retail scale. Real costs including market impact, bid-ask spread, and borrow fees would be higher. The sensitivity sweep confirms results are robust to modest cost increases, but 2bps should be treated as a lower bound.
+**Forward filter initialization uses training startprob.** In test folds starting mid-cycle, the true initial state distribution may differ. This is a minor bias that cannot be corrected without knowing the true state at the test period start.
 
-**Markov assumption.** HMMs assume the current state depends only on the previous state — no memory beyond one step. Markets exhibit momentum and mean-reversion at multiple horizons, violating this assumption. A higher-order HMM or regime-duration model would be more expressive but significantly harder to fit.
-
-**Position limits capped at 60% per asset.** Min-variance and risk-parity optimizers enforce a hard upper bound of 60% per asset via CVXPY constraint. The max-Sharpe optimizer uses the Lagrangian auxiliary variable formulation where position limits interact differently with the QP structure — the 60% cap is applied post-normalization via the existing concentration guard.
-
-**Forward filter initialization uses training startprob.** The causal forward filter initializes `alpha[0]` using `model.startprob_` learned on training data. In test folds starting mid-cycle, the true initial state distribution may differ. This is a minor bias that cannot be corrected without knowing the true state at the test period start.
-
-**Time period bias.** The full backtest covers 2006–2024 — a period that includes the GFC, a decade-long bull market, COVID, and a rate shock. Results may not generalize to other macroeconomic regimes not present in this window (e.g. stagflation of the 1970s, prolonged deflation).
+**Time period bias.** The full backtest covers 2006–2024 — a period that includes the GFC, a decade-long bull market, COVID, and a rate shock. Results may not generalize to other macroeconomic regimes not present in this window.
 
 ---
 
