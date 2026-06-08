@@ -31,4 +31,6 @@ def min_variance(returns: pd.DataFrame) -> np.ndarray:
     if w.value is None:
         return np.ones(n) / n
     
-    return w.value
+    weights = np.clip(w.value, 0, None)
+    weights = weights / np.sum(weights)
+    return weights
