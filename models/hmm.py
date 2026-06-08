@@ -118,7 +118,7 @@ def _fit_fold(
         period_df[f"p_{label.lower()}"] = posteriors[:, state_idx]
 
     n_states_entry = {"date": retrain_date, "n_states": int(best_n)}
-    print(f"Fitted {retrain_date.date()} → test through {next_date.date()}")
+    print(f"Fitted {retrain_date.date()} -> test through {next_date.date()}")
     return period_df, n_states_entry
 
 def count_params(n_states: int, n_features: int) -> int:
