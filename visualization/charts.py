@@ -85,9 +85,9 @@ def plot_regime_overlay(backtest: pd.DataFrame, regimes: pd.Series, ax=None):
     return ax
 
 def run():
-    backtest = pd.read_parquet("data/backtest_results.parquet")
-    returns  = pd.read_parquet("data/processed/returns.parquet")
-    regimes  = pd.read_parquet("data/regimes.parquet")["regime"]
+    backtest = pd.read_parquet(CFG["paths"]["backtest_results"])
+    returns  = pd.read_parquet(CFG["paths"]["returns"])
+    regimes  = pd.read_parquet(CFG["paths"]["regimes"])["regime"]
     
     fig, axes = plt.subplots(3, 1, figsize=(14, 16))
     plot_equity_curves(backtest, returns, ax=axes[0])
