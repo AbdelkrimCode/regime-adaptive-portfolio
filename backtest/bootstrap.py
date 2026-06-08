@@ -4,11 +4,11 @@ from backtest.metrics import compute_all
 from data.risk_free import fetch_risk_free
 from config import load_config
 
-CFG = load_config()["bootstrap"]
+CFG          = load_config()
 
-BLOCK_LENGTH = CFG["block_length"]
-N_ITERATIONS = CFG["n_iterations"]
-RANDOM_STATE = CFG["random_state"]
+BLOCK_LENGTH = CFG["bootstrap"]["block_length"]
+N_ITERATIONS = CFG["bootstrap"]["n_iterations"]
+RANDOM_STATE = CFG["bootstrap"]["random_state"]
 
 def block_resample(returns : pd.Series, block_length: int, rng: np.random.Generator) -> pd.Series:
     n = len(returns)
