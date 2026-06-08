@@ -53,3 +53,8 @@ stress_test:
   confidence: 0.95
   vix_threshold: 30.0
   block_size: 20
+  
+bootstrap:
+  block_length: 20
+  n_iterations: 1000
+  random_state: 42

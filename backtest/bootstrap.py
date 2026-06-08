@@ -2,10 +2,13 @@ import numpy as np
 import pandas as pd
 from backtest.metrics import compute_all
 from data.risk_free import fetch_risk_free
+from config import load_config
 
-BLOCK_LENGTH = 20
-N_ITERATIONS = 1000
-RANDOM_STATE = 42
+CFG = load_config()["bootstrap"]
+
+BLOCK_LENGTH = CFG["block_length"]
+N_ITERATIONS = CFG["n_iterations"]
+RANDOM_STATE = CFG["random_state"]
 
 def block_resample(returns : pd.Series, block_length: int, rng: np.random.Generator) -> pd.Series:
     n = len(returns)
@@ -93,11 +96,10 @@ def plot_bootstrap(bootstrap_df: pd.DataFrame, output_path: str | None = None) -
 
 
 def run(output_path: str | None = None) -> dict:
-    from config import load_config
     if output_path is None:
-        output_path = load_config()["paths"]["bootstrap"]
-    returns = pd.read_parquet("data/processed/returns.parquet")
-    backtest = pd.read_parquet("data/backtest_results.parquet")
+        output_path = CFG["paths"]["bootstrap"]
+    returns = pd.read_parquet(CFG["paths"]["returns"])
+    backtest = pd.read_parquet(CFG["paths"]["backtest_results"])
 
     common = returns.index.intersection(backtest.index)
     spy_returns = returns.loc[common, "SPY"]
