@@ -69,9 +69,10 @@ def main() -> None:
     print(df.to_string(index=False))
     prices = fetch_prices()
     returns = compute_returns(prices)
+    baseline = FEATURE_SETS["baseline"]
     features = compute_features(returns,
-        vol_window=CFG["data"]["vol_window"],
-        corr_window=CFG["data"]["corr_window"])
+        vol_window=baseline["vol_window"],
+        corr_window=baseline["corr_window"])
     features.to_parquet(CFG["paths"]["features"])
     returns.to_parquet(CFG["paths"]["returns"])
     print("\nBaseline features restored.")
