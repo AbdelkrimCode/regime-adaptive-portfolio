@@ -58,7 +58,11 @@ def forward_filter(model: GaussianHMM, features_scaled: np.ndarray) -> tuple[np.
 
     alpha = np.zeros((n_samples, n_states))
     alpha[0] = model.startprob_ * np.exp(log_emission[0])
-    alpha[0] /= alpha[0].sum()
+    total = alpha[0].sum()
+    if total > 0:
+        alpha[0] /= total
+    else:
+        alpha[0] = np.ones(n_states) / n_states
 
     for t in range(1, n_samples):
         alpha[t] = alpha[t - 1] @ model.transmat_ * np.exp(log_emission[t])
