@@ -131,7 +131,6 @@ def main(retrain: bool = False, charts: bool = True, walk_forward: bool = True) 
 
     print("\n--- Held-out test period (2019–2024) ---")
     test_start = CFG["evaluation"]["test_start"]
-    test_end = CFG["evaluation"]["train_end"]
     test_result, test_weights = run_period(
         start=test_start,
         end="2024-12-31",
