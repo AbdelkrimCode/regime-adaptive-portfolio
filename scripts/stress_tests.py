@@ -7,6 +7,7 @@ import pandas as pd
 from backtest.metrics import compute_all
 from data.risk_free import fetch_risk_free
 from config import load_config
+from backtest.bootstrap import block_resample
 
 CFG = load_config()
 
@@ -40,19 +41,19 @@ def sharpe_during_high_vix(returns: pd.Series, rf: pd.Series, vix_threshold: flo
 
 def monte_carlo_sharpe(returns: pd.Series, rf: pd.Series, n_sim: int = N_SIMULATIONS) -> dict:
     rng = np.random.default_rng(RANDOM_STATE)
+    rf_aligned = rf.reindex(returns.index).ffill().fillna(0)
     sharpes = []
 
     for _ in range(n_sim):
-        sampled = returns.sample(n=len(returns), replace=True, random_state=int(rng.integers(0, 1e6)))
-        rf_aligned = rf.reindex(returns.index).ffill().fillna(0).values
-        excess = sampled.values - rf_aligned
+        sampled = block_resample(returns, BLOCK_SIZE, rng)
+        excess = sampled.values - rf_aligned.values
         s = excess.mean() / excess.std() * np.sqrt(252) if excess.std() > 0 else 0.0
         sharpes.append(s)
 
     sharpes = np.array(sharpes)
     return {
-        "mean":  round(float(sharpes.mean()), 4),
-        "std":   round(float(sharpes.std()), 4),
+        "mean":     round(float(sharpes.mean()), 4),
+        "std":      round(float(sharpes.std()), 4),
         "ci_lower": round(float(np.percentile(sharpes, 2.5)), 4),
         "ci_upper": round(float(np.percentile(sharpes, 97.5)), 4),
     }
