@@ -192,9 +192,9 @@ Full pipeline rerun across `VOL_WINDOW ∈ {10, 21, 42}` × `CORR_WINDOW ∈ {42
 
 | Block Length | p-value | Mean Diff | 95% CI |
 |---|---|---|---|
-| 10 | 0.342 | 0.152 | [-0.44, 0.79] |
-| 20 | 0.292 | 0.165 | [-0.48, 0.77] |
-| 40 | 0.333 | 0.148 | [-0.50, 0.81] |
+| 10 | 0.418 | 0.0605 | [-0.56, 0.68] |
+| 20 | 0.396 | 0.0827 | [-0.55, 0.70] |
+| 40 | 0.391 | 0.0931 | [-0.52, 0.71] |
 
 Conclusion stable across block lengths: not statistically significant.
 
