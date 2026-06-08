@@ -1,5 +1,6 @@
 import argparse
 import pandas as pd
+import numpy as np
 from models.hmm import run as run_hmm
 from backtest.engine import run as run_backtest, run_period
 from backtest.metrics import compute_all, average_turnover
@@ -79,7 +80,7 @@ def print_regime_diagnostics(regimes_df: pd.DataFrame) -> None:
         if from_r in labels and to_r in labels:
             trans.loc[from_r, to_r] += 1
 
-    trans_pct = trans.div(trans.sum(axis=1), axis=0) * 100
+    trans_pct = trans.div(trans.sum(axis=1).replace(0, np.nan), axis=0) * 100
     print(f"\n  {'':12}", end="")
     for col in labels:
         print(f" {col:>10}", end="")
@@ -89,7 +90,7 @@ def print_regime_diagnostics(regimes_df: pd.DataFrame) -> None:
         print(f"  {row:<12}", end="")
         for col in labels:
             val = trans_pct.loc[row, col]
-            print(f" {val:>9.1f}%", end="")
+            print(f" {val:>9.1f}%" if not pd.isna(val) else f" {'—':>9}", end="")
         print()
 
 def print_jarque_bera(regimes_df: pd.DataFrame) -> None:
