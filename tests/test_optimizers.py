@@ -1,127 +1,134 @@
 import numpy as np
 import pandas as pd
 import pytest
-from backtest.metrics import (
-    annualized_return,
-    annualized_volatility,
-    sharpe_ratio,
-    max_drawdown,
-    calmar_ratio,
-    average_turnover,
-    compute_all,
-)
+from optimization.mean_var import max_sharpe
+from optimization.risk_parity import risk_parity
+from optimization.min_variance import min_variance
+from optimization.crash import crash_weights
+from optimization.switcher import compute_weights
 
-TRADING_DAYS = 252
+ASSETS = ["SPY", "TLT", "GLD", "EFA", "IEF", "QQQ", "LQD", "VNQ"]
+N_ASSETS = len(ASSETS)
+MAX_POSITION = 0.60
 
 
-
-
-def test_annualized_return_flat():
-    equity = pd.Series([1.0, 1.0, 1.0, 1.0, 1.0])
-    assert annualized_return(equity) == pytest.approx(0.0, abs=1e-6)
-
-
-def test_annualized_return_known():
-    daily = 0.001
-    n = TRADING_DAYS
-    equity = pd.Series([(1 + daily) ** i for i in range(n + 1)])
-    expected = (equity.iloc[-1] / equity.iloc[0]) ** (TRADING_DAYS / (n + 1)) - 1
-    assert annualized_return(equity) == pytest.approx(expected, rel=1e-4)
-
-
-
-
-def test_annualized_volatility_zero():
-    returns = pd.Series([0.0] * 100)
-    assert annualized_volatility(returns) == pytest.approx(0.0, abs=1e-6)
-
-
-def test_annualized_volatility_known():
+def make_returns(n: int = 500) -> pd.DataFrame:
     np.random.seed(42)
-    returns = pd.Series(np.random.normal(0, 0.01, 1000))
-    expected = returns.std() * np.sqrt(TRADING_DAYS)
-    assert annualized_volatility(returns) == pytest.approx(expected, rel=1e-6)
+    dates = pd.date_range("2015-01-01", periods=n, freq="B")
+    data = np.random.normal(0.0003, 0.01, (n, N_ASSETS))
+    return pd.DataFrame(data, index=dates, columns=ASSETS)
 
+# ——— max_sharpe ---
 
+def test_max_sharpe_correct_length():
+    assert len(max_sharpe(make_returns())) == N_ASSETS
 
+def test_max_sharpe_weights_sum_to_one():
+    assert np.sum(max_sharpe(make_returns())) == pytest.approx(1.0, abs=1e-6)
 
-def test_sharpe_ratio_zero_excess():
+def test_max_sharpe_non_negative():
+    assert np.all(max_sharpe(make_returns()) >= -1e-8)
 
-    rf_daily = 0.0001
-    returns = pd.Series([rf_daily] * 252)
-    rf = pd.Series([rf_daily] * 252)
-    assert sharpe_ratio(returns, rf=rf) == pytest.approx(0.0, abs=1e-6)
+def test_max_sharpe_no_nan():
+    assert not np.any(np.isnan(max_sharpe(make_returns())))
 
+def test_max_sharpe_fallback_on_zero_variance():
+    dates = pd.date_range("2015-01-01", periods=300, freq="B")
+    returns = pd.DataFrame(0.0, index=dates, columns=ASSETS)
+    w = max_sharpe(returns)
+    assert len(w) == N_ASSETS
+    assert np.sum(w) == pytest.approx(1.0, abs=1e-6)
 
-def test_sharpe_ratio_no_rf():
+    # --- risk_parity ---
 
-    returns = pd.Series([0.001] * 252)
-    result = sharpe_ratio(returns, rf=None)
-    assert result > 0
+def test_risk_parity_correct_length():
+    assert len(risk_parity(make_returns())) == N_ASSETS
 
+def test_risk_parity_weights_sum_to_one():
+    assert np.sum(risk_parity(make_returns())) == pytest.approx(1.0, abs=1e-6)
 
+def test_risk_parity_non_negative():
+    assert np.all(risk_parity(make_returns()) >= -1e-8)
 
+def test_risk_parity_no_nan():
+    assert not np.any(np.isnan(risk_parity(make_returns())))
 
-def test_max_drawdown_no_drawdown():
-    equity = pd.Series([1.0, 1.1, 1.2, 1.3, 1.4])
-    assert max_drawdown(equity) == pytest.approx(0.0, abs=1e-6)
+def test_risk_parity_respects_floor():
+    assert np.all(risk_parity(make_returns()) >= 0.01 - 1e-6)
 
+def test_risk_parity_respects_cap():
+    assert np.all(risk_parity(make_returns()) <= MAX_POSITION + 1e-6)
 
-def test_max_drawdown_known():
+# --- min_variance ---
 
-    equity = pd.Series([1.0, 2.0, 1.0, 1.5])
-    assert max_drawdown(equity) == pytest.approx(-0.5, rel=1e-6)
+def test_min_variance_correct_length():
+    assert len(min_variance(make_returns())) == N_ASSETS
 
+def test_min_variance_weights_sum_to_one():
+    assert np.sum(min_variance(make_returns())) == pytest.approx(1.0, abs=1e-6)
 
-def test_max_drawdown_negative():
-    result = max_drawdown(pd.Series([1.0, 0.8, 0.9, 0.7, 0.95]))
-    assert result < 0
+def test_min_variance_non_negative():
+    assert np.all(min_variance(make_returns()) >= -1e-8)
 
+def test_min_variance_no_nan():
+    assert not np.any(np.isnan(min_variance(make_returns())))
 
+def test_min_variance_respects_cap():
+    assert np.all(min_variance(make_returns()) <= MAX_POSITION + 1e-6)
 
+# --- crash_weights ---
 
-def test_average_turnover_no_change():
-    weights = pd.DataFrame(
-        {"A": [0.5, 0.5, 0.5], "B": [0.5, 0.5, 0.5]}
+def test_crash_weights_correct_length():
+    assert len(crash_weights(make_returns())) == N_ASSETS
+
+def test_crash_weights_sum_to_one():
+    assert np.sum(crash_weights(make_returns())) == pytest.approx(1.0, abs=1e-6)
+
+def test_crash_weights_no_nan():
+    assert not np.any(np.isnan(crash_weights(make_returns())))
+
+def test_crash_weights_only_safe_havens_nonzero():
+    safe_havens = {"IEF", "TLT", "GLD"}
+    w = crash_weights(make_returns())
+    for i, asset in enumerate(ASSETS):
+        if asset not in safe_havens:
+            assert w[i] == pytest.approx(0.0, abs=1e-8), f"{asset} should be zero in crash"
+
+def test_crash_weights_fallback_when_no_safe_havens():
+    dates = pd.date_range("2015-01-01", periods=300, freq="B")
+    returns = pd.DataFrame(
+        np.random.normal(0, 0.01, (300, 3)),
+        index=dates,
+        columns=["SPY", "QQQ", "EFA"]
     )
-    assert average_turnover(weights) == pytest.approx(0.0, abs=1e-6)
+    w = crash_weights(returns)
+    assert np.sum(w) == pytest.approx(1.0, abs=1e-6)
+    assert len(w) == 3
 
+    
+# --- compute_weights ---
 
-def test_average_turnover_known():
-    weights = pd.DataFrame(
-        {"A": [0.5, 0.3, 0.3], "B": [0.5, 0.7, 0.7]}
+def make_regimes(returns: pd.DataFrame, regime: str) -> pd.DataFrame:
+    posteriors = {"p_bull": 0.0, "p_bear": 0.0, "p_sideways": 0.0, "p_crash": 0.0}
+    posteriors[f"p_{regime.lower()}"] = 1.0
+    df = pd.DataFrame(
+        [{"regime": regime, "is_retrain_date": False, **posteriors}] * len(returns),
+        index=returns.index
     )
-    result = average_turnover(weights)
-    assert result == pytest.approx(0.4 / 3, abs=1e-3)
+    return df
 
+def test_compute_weights_shape():
+    returns = make_returns()
+    w = compute_weights(make_regimes(returns, "Bull"), returns)
+    assert w.shape == (len(returns), N_ASSETS)
 
+def test_compute_weights_sum_to_one():
+    returns = make_returns()
+    w = compute_weights(make_regimes(returns, "Bull"), returns).dropna()
+    assert np.allclose(w.sum(axis=1), 1.0, atol=1e-6)
 
-
-def test_compute_all_keys():
-    returns = pd.Series(np.random.normal(0.0005, 0.01, 500))
-    equity = (1 + returns).cumprod()
-    result = compute_all(returns, equity)
-    expected_keys = {
-        "annualized_return",
-        "annualized_volatility",
-        "sharpe_ratio",
-        "max_drawdown",
-        "calmar_ratio",
-    }
-    assert set(result.keys()) == expected_keys
-
-
-def test_compute_all_types():
-    returns = pd.Series(np.random.normal(0.0005, 0.01, 500))
-    equity = (1 + returns).cumprod()
-    result = compute_all(returns, equity)
-    for v in result.values():
-        assert isinstance(v, float)
-
-
-def test_compute_all_max_drawdown_negative():
-    np.random.seed(0)
-    returns = pd.Series(np.random.normal(0, 0.02, 500))
-    equity = (1 + returns).cumprod()
-    result = compute_all(returns, equity)
-    assert result["max_drawdown"] <= 0
+def test_compute_weights_equal_weight_when_history_too_short():
+    returns = make_returns(n=500)
+    short_returns = returns.iloc[:50]
+    w = compute_weights(make_regimes(short_returns, "Bull"), short_returns).dropna()
+    assert np.allclose(w.values, 1.0 / N_ASSETS, atol=1e-6)
