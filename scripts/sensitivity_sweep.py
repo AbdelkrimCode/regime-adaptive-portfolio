@@ -69,11 +69,6 @@ def main() -> None:
     print(df.to_string(index=False))
     print(f"\nFull results saved to {RESULTS_PATH}")
 
-    df = pd.DataFrame(results)
-    print("\n=== Sensitivity Sweep Results ===")
-    print(df.to_string(index=False))
-    print(f"\nFull results saved to {RESULTS_PATH}")
-
 def bootstrap_sweep() -> None:
     from backtest.bootstrap import run_bootstrap, summarize
 
