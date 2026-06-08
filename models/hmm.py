@@ -234,7 +234,7 @@ def predict_regimes(model: GaussianHMM, features: np.ndarray,
     df["is_retrain_date"] = False
     return df
 
-def walk_forward_regimes(df: pd.DataFrame) -> pd.DataFrame:
+def walk_forward_regimes(df: pd.DataFrame, n_jobs: int | None = None) -> pd.DataFrame:
     from joblib import Parallel, delayed
 
     features_cols = df.columns.tolist()
@@ -254,7 +254,8 @@ def walk_forward_regimes(df: pd.DataFrame) -> pd.DataFrame:
             continue
         folds.append((train_df, test_df, retrain_date, next_date))
 
-    results = Parallel(n_jobs=CFG["hmm"]["n_jobs"])(
+    effective_n_jobs = n_jobs if n_jobs is not None else CFG["hmm"]["n_jobs"]
+    results = Parallel(n_jobs=effective_n_jobs)(
         delayed(_fit_fold)(train_df, test_df, retrain_date, next_date, features_cols)
         for train_df, test_df, retrain_date, next_date in folds
     )

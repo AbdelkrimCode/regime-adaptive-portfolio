@@ -19,8 +19,7 @@ VOL_WINDOWS   = [10, 21, 42]
 CORR_WINDOWS  = [42, 63, 126]
 RESULTS_PATH  = CFG["paths"]["sensitivity_results"]
 
-def run_single(vol_window: int, corr_window: int, n_jobs: int = 8) -> dict:
-    CFG["hmm"]["n_jobs"] = n_jobs
+def run_single(vol_window: int, corr_window: int, n_jobs: int = -1) -> dict:
     print(f"\n--- VOL_WINDOW={vol_window}, CORR_WINDOW={corr_window} ---")
 
     prices = fetch_prices()
@@ -33,7 +32,7 @@ def run_single(vol_window: int, corr_window: int, n_jobs: int = 8) -> dict:
     returns.to_parquet(returns_path)
 
     rf = fetch_risk_free()
-    regimes = walk_forward_regimes(features)
+    regimes = walk_forward_regimes(features, n_jobs=n_jobs)
 
     import os
     os.makedirs(os.path.dirname(CFG["paths"]["regimes"]), exist_ok=True)
@@ -61,12 +60,14 @@ def run_single(vol_window: int, corr_window: int, n_jobs: int = 8) -> dict:
     }
 
 def main() -> None:
-    results = []
-    for vol_window, corr_window in product(VOL_WINDOWS, CORR_WINDOWS):
-        result = run_single(vol_window, corr_window)
-        results.append(result)
-        pd.DataFrame(results).to_csv(RESULTS_PATH, index=False)
-        print(f"  Saved intermediate results to {RESULTS_PATH}")
+    from joblib import Parallel, delayed
+    combinations = list(product(VOL_WINDOWS, CORR_WINDOWS))
+    results = Parallel(n_jobs=-1)(delayed(run_single)(vol_window, corr_window) for vol_window, corr_window in combinations)
+    df = pd.DataFrame(results)
+    df.to_csv(RESULTS_PATH, index=False)
+    print(f"\n=== Sensitivity Sweep Results ===")
+    print(df.to_string(index=False))
+    print(f"\nFull results saved to {RESULTS_PATH}")
 
     df = pd.DataFrame(results)
     print("\n=== Sensitivity Sweep Results ===")
