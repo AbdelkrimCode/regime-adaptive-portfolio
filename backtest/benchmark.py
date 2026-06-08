@@ -5,6 +5,7 @@ from backtest.metrics import compute_all
 from config import load_config as _load_config
 
 TRANSACTION_COST = _load_config()["backtest"]["transaction_cost"]
+MIN_HISTORY      = _load_config()["hmm"]["min_train_days"] // 2
 
 def apply_transaction_costs(weights: pd.DataFrame, returns: pd.Series) -> pd.Series:
     weight_changes = weights.diff().abs().sum(axis=1)
@@ -98,7 +99,7 @@ def get_risk_parity_equity(returns: pd.DataFrame) -> tuple[pd.Series, pd.Series]
     for i, month_end in enumerate(monthly_ends):
         next_month_end = monthly_ends[i + 1] if i + 1 < len(monthly_ends) else returns.index[-1]
         history = returns.loc[:month_end]
-        if len(history) < 126:
+        if len(history) < MIN_HISTORY:
             continue
         raw = risk_parity(history)
         mask = (returns.index > month_end) & (returns.index <= next_month_end)
