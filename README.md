@@ -338,7 +338,8 @@ regime-adaptive-portfolio/
 │   ├── test_hmm.py        # 14 tests — HMM module
 │   ├── test_engine.py     # 9 tests — backtest engine
 │   ├── test_optimizers.py # 24 tests — all four optimizers and compute_weights
-│   └── test_integration.py # 4 tests — end-to-end pipeline regression
+│   ├── test_integration.py # 4 tests — end-to-end pipeline regression
+│   └──test_scripts.py #5 tests — script level integration : bootstrap rf, ablation and sensitivity
 ├── visualization/
 │   └── charts.py          # Equity curves, drawdown, regime overlay
 └── main.py                # Full pipeline entry point
