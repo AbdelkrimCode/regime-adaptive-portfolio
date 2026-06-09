@@ -1,6 +1,4 @@
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from backtest.bootstrap import run_bootstrap
 
 import pandas as pd
 import numpy as np
@@ -86,7 +84,8 @@ def bootstrap_sweep() -> None:
     print(f"  {'-' * 55}")
 
     for block_length in block_lengths:
-        bootstrap_df = run_bootstrap(port_returns, spy_returns, block_length=block_length)
+        rf = fetch_risk_free()
+        bootstrap_df = run_bootstrap(port_returns, spy_returns, block_length=block_length, rf=rf)
         summary = summarize(bootstrap_df)
         print(f"  {block_length:>12} {summary['p_value']:>10} {summary['mean_sharpe_diff']:>10} {summary['ci_lower']:>10} {summary['ci_upper']:>10}")
 
