@@ -34,7 +34,7 @@ alpha_t[i] = P(o_t | state=i) * sum_j( alpha_{t-1}[j] * A[j,i] )
 filtered_posterior_t = alpha_t / sum(alpha_t)
 ```
 
-**Performance impact:** Forward filtering reduces full-sample Sharpe relative to Viterbi because Viterbi's within-window smoothing produced better labels in hindsight. The v7 numbers reflect what a truly causal system would have produced. Methodological correctness is preferred over inflated backtested results.
+**Performance impact:** Forward filtering reduces full-sample Sharpe relative to Viterbi because Viterbi's within-window smoothing produced better labels in hindsight. The v6 numbers re   flect what a truly causal system would have produced. Methodological correctness is preferred over inflated backtested results.
 
 ### 4. Parallelized Fold Execution
 Each quarterly fold is independent — no shared mutable state. Folds execute via `joblib.Parallel`. `n_jobs=1` in `config.yaml` keeps the default deterministic; the sensitivity sweep passes `n_jobs=-1` explicitly to `walk_forward_regimes()` for speed.
@@ -178,13 +178,13 @@ Full pipeline rerun across `VOL_WINDOW ∈ {10, 21, 42}` × `CORR_WINDOW ∈ {42
 | VOL\CORR | 42 | 63 | 126 |
 |---|---|---|---|
 | **Full Sharpe** | | | |
-| 10 | 0.374 | 0.621 | 0.613 |
-| 21 | 0.525 | 0.534 | 0.622 |
-| 42 | 0.384 | 0.524 | 0.486 |
+| 10 | 0.419 | 0.571 | 0.591 |
+| 21 | 0.482 | 0.432 | 0.486 |
+| 42 | 0.423 | 0.527 | 0.425 |
 | **Held-out Sharpe** | | | |
-| 10 | 0.323 | 0.799 | 0.638 |
-| 21 | 0.488 | 0.760 | 0.711 |
-| 42 | 0.271 | 0.768 | 0.579 |
+| 10 | 0.193 | 0.501 | 0.449 |
+| 21 | 0.271 | 0.492 | 0.143 |
+| 42 | 0.304 | 0.344 | 0.253 |
 
 `CORR_WINDOW=63` consistently produces the best or near-best held-out Sharpe. Default parameters sit in a stable region — not cherry-picked.
 
@@ -192,9 +192,9 @@ Full pipeline rerun across `VOL_WINDOW ∈ {10, 21, 42}` × `CORR_WINDOW ∈ {42
 
 | Block Length | p-value | Mean Diff | 95% CI |
 |---|---|---|---|
-| 10 | 0.418 | 0.0605 | [-0.56, 0.68] |
-| 20 | 0.396 | 0.0827 | [-0.55, 0.70] |
-| 40 | 0.391 | 0.0931 | [-0.52, 0.71] |
+| 10 | 0.384 | 0.105 | [-0.53, 0.74] |
+| 20 | 0.404 | 0.077 | [-0.58, 0.74] |
+| 40 | 0.393 | 0.083 | [-0.59, 0.73] |
 
 Conclusion stable across block lengths: not statistically significant.
 
@@ -208,10 +208,10 @@ Full pipeline rerun across four feature configurations to justify the baseline c
 
 | Feature Set | Full Sharpe | Held-Out Sharpe | Max DD |
 |---|---|---|---|
-| baseline (vol_21, corr_63) | 0.453 | 0.292 | -26.1% |
-| vol_10 (vol_10, corr_63) | 0.579 | 0.273 | -23.9% |
-| vol_42 (vol_42, corr_63) | 0.410 | 0.310 | -26.9% |
-| skew_kurt (skew+kurt, no corr) | 0.466 | 0.067 | -28.1% |
+| baseline (vol_21, corr_63) | 0.432 | 0.492 | -27.6% |
+| vol_10 (vol_10, corr_63) | 0.571 | 0.501 | -24.6% |
+| vol_42 (vol_42, corr_63) | 0.527 | 0.344 | -28.0% |
+| skew_kurt (skew+kurt, no corr) | 0.469 | 0.169 | -30.6% |
 
 vol_10 wins in-sample but underperforms out-of-sample. skew_kurt collapses out-of-sample (0.067) — badly overfit. Baseline sits in a stable middle ground — not cherry-picked, robust across market environments.
 
@@ -339,7 +339,7 @@ regime-adaptive-portfolio/
 │   ├── test_engine.py     # 9 tests — backtest engine
 │   ├── test_optimizers.py # 24 tests — all four optimizers and compute_weights
 │   ├── test_integration.py # 4 tests — end-to-end pipeline regression
-│   └──test_scripts.py #5 tests — script level integration : bootstrap rf, ablation and sensitivity
+│   └── test_scripts.py #5 tests — script level integration : bootstrap rf, ablation and sensitivity
 ├── visualization/
 │   └── charts.py          # Equity curves, drawdown, regime overlay
 └── main.py                # Full pipeline entry point
