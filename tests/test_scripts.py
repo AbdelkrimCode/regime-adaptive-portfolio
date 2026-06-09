@@ -69,3 +69,31 @@ def test_ablation_restore_block_no_crash():
         corr_window=baseline["corr_window"])
     features.to_parquet(CFG["paths"]["features"])
     returns.to_parquet(CFG["paths"]["returns"])
+
+from models.hmm import _fit_hmm_core, forward_filter
+from sklearn.preprocessing import StandardScaler
+
+def test_forward_filter_differs_from_viterbi():
+    np.random.seed(42)
+    n = 500
+    features = np.random.normal(0, 1, (n, 3))
+    features[:200, 0] += 0.5
+    features[200:350, 0] -= 0.5
+    features[350:, 0] += 0.3
+
+    scaler = StandardScaler()
+    features_scaled = scaler.fit_transform(features)
+    model = _fit_hmm_core(features_scaled, n_states=3)
+
+    _, ff_posteriors = forward_filter(model, features_scaled)
+    viterbi_posteriors = model.predict_proba(features_scaled)
+
+    assert not np.allclose(ff_posteriors, viterbi_posteriors, atol=1e-3), \
+        "Forward filter and Viterbi posteriors should differ"
+
+    def entropy(p):
+        p = np.clip(p, 1e-10, 1)
+        return -np.sum(p * np.log(p), axis=1).mean()
+
+    assert entropy(ff_posteriors) > entropy(viterbi_posteriors), \
+        "Forward filter should be more uncertain than Viterbi"
