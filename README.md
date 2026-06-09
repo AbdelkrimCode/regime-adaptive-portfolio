@@ -339,7 +339,7 @@ regime-adaptive-portfolio/
 │   ├── test_engine.py     # 9 tests — backtest engine
 │   ├── test_optimizers.py # 24 tests — all four optimizers and compute_weights
 │   ├── test_integration.py # 4 tests — end-to-end pipeline regression
-│   └── test_scripts.py #5 tests — script level integration : bootstrap rf, ablation and sensitivity
+│   └── test_scripts.py #5 tests — script level integration : bootstrap rf, ablation, sensitivity and Viterbi vs forward-filter
 ├── visualization/
 │   └── charts.py          # Equity curves, drawdown, regime overlay
 └── main.py                # Full pipeline entry point
