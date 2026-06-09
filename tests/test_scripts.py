@@ -27,7 +27,7 @@ def test_bootstrap_sharpe_differs_with_rf():
 
 from scripts.sensitivity_sweep import run_single as sweep_run_single
 
-#@pytest.mark.skip(reason="full pipeline run — execute manually")
+@pytest.mark.skip(reason="full pipeline run — execute manually")
 def test_sensitivity_sweep_run_single_keys():
     result = sweep_run_single(vol_window=21, corr_window=63)
     expected_keys = {
@@ -36,7 +36,7 @@ def test_sensitivity_sweep_run_single_keys():
     }
     assert set(result.keys()) == expected_keys
 
-#@pytest.mark.skip(reason="full pipeline run — execute manually")
+@pytest.mark.skip(reason="full pipeline run — execute manually")
 def test_sensitivity_sweep_run_single_valid_values():
     result = sweep_run_single(vol_window=21, corr_window=63)
     assert -1.0 < result["sharpe"] < 5.0
@@ -50,7 +50,7 @@ from data.process import compute_features, compute_returns
 from data.fetch import fetch_prices
 from config import load_config
 
-#@pytest.mark.skip(reason="full pipeline run — execute manually")
+@pytest.mark.skip(reason="full pipeline run — execute manually")
 def test_ablation_run_single_keys():
     result = ablation_run_single("baseline", FEATURE_SETS["baseline"])
     expected_keys = {

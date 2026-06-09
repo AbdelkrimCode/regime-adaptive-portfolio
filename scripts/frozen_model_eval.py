@@ -16,7 +16,7 @@ CFG = load_config()
 FREEZE_DATE = CFG["evaluation"]["train_end"]
 TEST_START  = CFG["evaluation"]["test_start"]
 TEST_END    = "2024-12-31"
-FEATURES_COLS = ["spy_return", "spy_vol", "mean_corr"]
+FEATURES_COLS = pd.read_parquet(CFG["paths"]["features"]).columns.tolist()
 
 def train_frozen_model() -> tuple:
     df = load_features()
