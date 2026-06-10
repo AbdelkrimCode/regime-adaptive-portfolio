@@ -16,7 +16,7 @@ OPTIMIZER_MAP = {
     "Crash": crash_weights,
 }
 
-min_history = CFG["hmm"]["min_train_days"] // 2
+MIN_HISTORY = CFG["hmm"]["min_train_days"] // 2
 CONCENTRATION_GUARD = 0.99
 
 def get_weights(regime: str, returns: pd.DataFrame) -> np.ndarray:
@@ -34,7 +34,7 @@ def compute_weights(regimes_df: pd.DataFrame, returns: pd.DataFrame) -> pd.DataF
         regime = row["regime"]
         available_returns = returns.loc[:date]
 
-        if len(available_returns) < min_history:
+        if len(available_returns) < MIN_HISTORY:
             weights.loc[date] = np.ones(len(assets)) / len(assets)
             continue
 
