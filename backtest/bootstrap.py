@@ -34,8 +34,15 @@ def run_bootstrap(
     records = []
 
     for _ in range(n_iterations):
-        port_sample = block_resample(port_returns, block_length, rng)
-        bench_sample = block_resample(benchmark_returns, block_length, rng)
+        n = len(port_returns)
+        indices = []
+        while len(indices) < n:
+            start = rng.integers(0, n - block_length + 1)
+            indices.extend(range(start, start + block_length))
+        indices = indices[:n]
+
+        port_sample  = pd.Series(port_returns.values[indices],  index=port_returns.index[:n])
+        bench_sample = pd.Series(benchmark_returns.values[indices], index=benchmark_returns.index[:n])
 
         port_equity = (1 + port_sample).cumprod()
         bench_equity = (1 + bench_sample).cumprod()
