@@ -59,16 +59,15 @@ def test_ablation_run_single_keys():
     }
     assert set(result.keys()) == expected_keys
 
-def test_ablation_restore_block_no_crash():
-    CFG = load_config()
+def test_ablation_restore_block_no_crash(tmp_path):
     prices = fetch_prices()
     returns = compute_returns(prices)
     baseline = FEATURE_SETS["baseline"]
     features = compute_features(returns,
         vol_window=baseline["vol_window"],
         corr_window=baseline["corr_window"])
-    features.to_parquet(CFG["paths"]["features"])
-    returns.to_parquet(CFG["paths"]["returns"])
+    features.to_parquet(tmp_path / "features.parquet")
+    returns.to_parquet(tmp_path / "returns.parquet")
 
 from models.hmm import _fit_hmm_core, forward_filter
 from sklearn.preprocessing import StandardScaler
