@@ -2,9 +2,9 @@ import pandas as pd
 import numpy as np
 from data.risk_free import fetch_risk_free
 from backtest.metrics import compute_all
-from config import load_config as _load_config
+from config import load_config
 
-CFG = _load_config()
+CFG = load_config()
 TRANSACTION_COST = CFG["backtest"]["transaction_cost"]
 MIN_HISTORY      = CFG["hmm"]["min_train_days"] // 2
 
@@ -25,10 +25,11 @@ def get_equal_weight_equity(returns: pd.DataFrame) -> tuple[pd.Series, pd.Series
         weights.loc[mask] = 1.0 / n_assets
 
     weights = weights.dropna()
-    aligned_returns = returns.loc[weights.index]
-    port_returns = (weights.values * aligned_returns.values).sum(axis=1)
-    port_returns = pd.Series(port_returns, index=weights.index, name="ew_return")
-    port_returns = apply_transaction_costs(weights, port_returns)
+    weights_shifted = weights.shift(1).dropna()
+    aligned_returns = returns.loc[weights_shifted.index]
+    port_returns = (weights_shifted.values * aligned_returns.values).sum(axis=1)
+    port_returns = pd.Series(port_returns, index=weights_shifted.index, name="ew_return")
+    port_returns = apply_transaction_costs(weights_shifted, port_returns)
     equity = (1 + port_returns).cumprod()
     equity.name = "ew_equity"
     return port_returns, equity
@@ -47,10 +48,11 @@ def get_sixty_forty_equity(returns: pd.DataFrame) -> tuple[pd.Series, pd.Series]
         weights.loc[mask] = row.values
 
     weights = weights.dropna()
-    aligned_returns = returns.loc[weights.index]
-    port_returns = (weights.values * aligned_returns.values).sum(axis=1)
-    port_returns = pd.Series(port_returns, index=weights.index, name="sixty_forty_return")
-    port_returns = apply_transaction_costs(weights, port_returns)
+    weights_shifted = weights.shift(1).dropna()
+    aligned_returns = returns.loc[weights_shifted.index]
+    port_returns = (weights_shifted.values * aligned_returns.values).sum(axis=1)
+    port_returns = pd.Series(port_returns, index=weights_shifted.index, name="sixty_forty_return")
+    port_returns = apply_transaction_costs(weights_shifted, port_returns)
     equity = (1 + port_returns).cumprod()
     equity.name = "sixty_forty_equity"
     return port_returns, equity
@@ -77,10 +79,11 @@ def get_momentum_equity(returns: pd.DataFrame, lookback: int = 252, top_n: int =
         weights.loc[mask] = row.values
 
     weights = weights.dropna()
-    aligned_returns = returns.loc[weights.index]
-    port_returns = (weights.values * aligned_returns.values).sum(axis=1)
-    port_returns = pd.Series(port_returns, index=weights.index, name="momentum_return")
-    port_returns = apply_transaction_costs(weights, port_returns)
+    weights_shifted = weights.shift(1).dropna()
+    aligned_returns = returns.loc[weights_shifted.index]
+    port_returns = (weights_shifted.values * aligned_returns.values).sum(axis=1)
+    port_returns = pd.Series(port_returns, index=weights_shifted.index, name="momentum_return")
+    port_returns = apply_transaction_costs(weights_shifted, port_returns)
     equity = (1 + port_returns).cumprod()
     equity.name = "momentum_equity"
     return port_returns, equity
@@ -101,10 +104,11 @@ def get_risk_parity_equity(returns: pd.DataFrame) -> tuple[pd.Series, pd.Series]
         weights.loc[mask] = raw
 
     weights = weights.dropna()
-    aligned_returns = returns.loc[weights.index]
-    port_returns = (weights.values * aligned_returns.values).sum(axis=1)
-    port_returns = pd.Series(port_returns, index=weights.index, name="risk_parity_return")
-    port_returns = apply_transaction_costs(weights, port_returns)
+    weights_shifted = weights.shift(1).dropna()
+    aligned_returns = returns.loc[weights_shifted.index]
+    port_returns = (weights_shifted.values * aligned_returns.values).sum(axis=1)
+    port_returns = pd.Series(port_returns, index=weights_shifted.index, name="risk_parity_return")
+    port_returns = apply_transaction_costs(weights_shifted, port_returns)
     equity = (1 + port_returns).cumprod()
     equity.name = "risk_parity_equity"
     return port_returns, equity
