@@ -7,9 +7,9 @@ TRADING_DAYS = CFG["market"]["trading_days"]
 RISK_FREE_RATE = CFG["market"]["risk_free_rate"]
 
 def annualized_return(equity: pd.Series) -> float:
-    n_days = len(equity)
+    n_periods = len(equity) - 1
     total_return = equity.iloc[-1] / equity.iloc[0]
-    return total_return ** (TRADING_DAYS / n_days) - 1
+    return total_return ** (TRADING_DAYS / n_periods) - 1
 
 def annualized_volatility(returns: pd.Series) -> float:
     return returns.std() * np.sqrt(TRADING_DAYS)
