@@ -243,11 +243,16 @@ def walk_forward_regimes(df: pd.DataFrame, n_jobs: int | None = None) -> pd.Data
 
     features_cols = df.columns.tolist()
 
-    retrain_dates = pd.date_range(
+    raw_dates = pd.date_range(
         start=df.index.min(),
         end=df.index.max(),
         freq=CFG["hmm"]["retrain_frequency"]
     )
+    retrain_dates = pd.DatetimeIndex([
+        df.index[df.index.searchsorted(d, side="left")]
+        for d in raw_dates
+        if df.index.searchsorted(d, side="left") < len(df.index)
+    ])
 
     folds = []
     for i, retrain_date in enumerate(retrain_dates):
@@ -290,11 +295,16 @@ def audit_walk_forward(output_path: str | None = None) -> pd.DataFrame:
         output_path = CFG["paths"]["walk_forward_audit"]
     df = load_features()
 
-    retrain_dates = pd.date_range(
+    raw_dates = pd.date_range(
         start=df.index.min(),
         end=df.index.max(),
         freq=CFG["hmm"]["retrain_frequency"]
     )
+    retrain_dates = pd.DatetimeIndex([
+        df.index[df.index.searchsorted(d, side="left")]
+        for d in raw_dates
+        if df.index.searchsorted(d, side="left") < len(df.index)
+    ])
 
     records = []
     for i, retrain_date in enumerate(retrain_dates):
