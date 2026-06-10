@@ -11,10 +11,8 @@ N_ASSETS = 4
 ASSETS = ["SPY", "TLT", "GLD", "EFA"]
 N_DAYS = 600
 
-np.random.seed(42)
-
-
 def make_synthetic_prices() -> pd.DataFrame:
+    np.random.seed(67) #I am very funny :D
     dates = pd.date_range("2018-01-01", periods=N_DAYS, freq="B")
     prices = pd.DataFrame(
         100 * np.exp(np.cumsum(np.random.normal(0.0003, 0.01, (N_DAYS, N_ASSETS)), axis=0)),
