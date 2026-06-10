@@ -1,11 +1,13 @@
-
 import os
 import numpy as np
 import pandas as pd
+from config import load_config
 
-PROCESSED_DIR = os.path.join(os.path.dirname(__file__), "processed")
-RETURNS_PATH  = os.path.join(PROCESSED_DIR, "returns.parquet")
-FEATURES_PATH = os.path.join(PROCESSED_DIR, "features.parquet")
+
+CFG = load_config()
+RETURNS_PATH  = CFG["paths"]["returns"]
+FEATURES_PATH = CFG["paths"]["features"]
+PROCESSED_DIR = os.path.dirname(RETURNS_PATH)
 
 VOL_WINDOW  = 21   
 CORR_WINDOW = 63   
