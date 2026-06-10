@@ -47,17 +47,19 @@ def run(regimes_df: pd.DataFrame | None = None) -> tuple[pd.DataFrame, pd.DataFr
 def run_period(
     start: str,
     end: str,
-    regimes_df: pd.DataFrame | None = None
+    regimes_df: pd.DataFrame | None = None,
+    returns_df: pd.DataFrame | None = None
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     if regimes_df is None:
         regimes_df = pd.read_parquet(CFG["paths"]["regimes"])
 
-    returns = pd.read_parquet(CFG["paths"]["returns"])
+    if returns_df is None:
+        returns_df = pd.read_parquet(CFG["paths"]["returns"])
 
     regimes_slice = regimes_df.loc[start:end]
-    returns_slice = returns.loc[start:end]
+    returns_slice = returns_df.loc[start:end]
 
-    weights = compute_weights(regimes_slice, returns)
+    weights = compute_weights(regimes_slice, returns_df)
     result = simulate(weights, returns_slice)
 
     return result, weights
