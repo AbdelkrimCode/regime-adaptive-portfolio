@@ -83,7 +83,7 @@ def test_simulate_weights_shifted_by_one():
     assert result["portfolio_return"].iloc[0] == pytest.approx(0.05, abs=1e-3)
 
 
-def test_simulate_no_lookahead():
+def test_simulate_constant_weights_produce_expected_return():
     idx = pd.date_range("2020-01-01", periods=5)
     weights = pd.DataFrame({"A": [1.0] * 5, "B": [0.0] * 5}, index=idx)
     returns = pd.DataFrame({"A": [0.01] * 5, "B": [0.0] * 5}, index=idx)
