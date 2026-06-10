@@ -32,8 +32,8 @@ def _fit_hmm_core(features_scaled: np.ndarray, n_states: int) -> GaussianHMM | N
                 random_state=CFG["hmm"]["random_state"] + i
             )
             model.fit(features_scaled)
-            last_model = model
             score = model.score(features_scaled)
+            last_model = model
             if score > best_score:
                 best_score = score
                 best_model = model
@@ -102,7 +102,7 @@ def _fit_fold(
     if scores_df.empty:
         return None
     best_n = scores_df["bic"].idxmin()
-    
+
     print(f"  Selected n_states={best_n} for fold {retrain_date.date()}")
 
     model, _ = fit_hmm_with_n(train_scaled, best_n)
