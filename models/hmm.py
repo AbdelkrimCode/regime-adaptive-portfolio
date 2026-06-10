@@ -5,7 +5,7 @@ import joblib
 import os
 from sklearn.preprocessing import StandardScaler
 from config import load_config
-import matplotlib.pyplot as plt
+
 
 CFG = load_config()
 
@@ -160,6 +160,7 @@ def select_n_states(features_scaled: np.ndarray, candidate_states: list[int] | N
     return pd.DataFrame(records).set_index("n_states")
 
 def plot_state_selection(scores_df: pd.DataFrame, output_path: str | None = None) -> None:
+    import matplotlib.pyplot as plt
     if output_path is None:
         output_path = CFG["paths"]["state_selection"]
 
