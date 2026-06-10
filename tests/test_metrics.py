@@ -25,7 +25,7 @@ def test_annualized_return_known():
     daily = 0.001
     n = TRADING_DAYS
     equity = pd.Series([(1 + daily) ** i for i in range(n + 1)])
-    expected = (equity.iloc[-1] / equity.iloc[0]) ** (TRADING_DAYS / (n + 1)) - 1
+    expected = (equity.iloc[-1] / equity.iloc[0]) ** (TRADING_DAYS / (len(equity) - 1)) - 1
     assert annualized_return(equity) == pytest.approx(expected, rel=1e-4)
 
 
