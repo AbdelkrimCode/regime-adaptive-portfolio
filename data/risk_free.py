@@ -1,14 +1,16 @@
 import os
 import yfinance as yf
 import pandas as pd
+from config import load_config
 
+_CFG = load_config()
 RF_TICKER = "^IRX"
 RF_PATH = os.path.join(os.path.dirname(__file__), "processed", "risk_free.parquet")
 
 
 def fetch_risk_free(
     start: str = "2005-01-01",
-    end: str = "2024-12-31",
+    end: str = _CFG["evaluation"]["data_end"],
     force_refresh: bool = False
 ) -> pd.Series:
     if os.path.exists(RF_PATH) and not force_refresh:
