@@ -12,12 +12,6 @@ def apply_transaction_costs(weights: pd.DataFrame, returns: pd.Series) -> pd.Ser
     costs = weight_changes * TRANSACTION_COST
     return returns - costs
 
-def get_spy_equity(returns: pd.DataFrame) -> pd.Series:
-    spy_returns = returns["SPY"]
-    equity = (1 + spy_returns).cumprod()
-    equity.name = "spy_equity"
-    return equity
-
 def get_equal_weight_equity(returns: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
     n_assets = len(returns.columns)
     monthly_ends = returns.resample("ME").last().index
