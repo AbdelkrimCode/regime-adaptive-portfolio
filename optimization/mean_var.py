@@ -7,6 +7,7 @@ from config import load_config
 CFG = load_config()
 TRADING_DAYS = CFG["market"]["trading_days"]
 RISK_FREE_RATE = CFG["market"]["risk_free_rate"]
+MAX_POSITION = CFG["optimizer"]["max_position"]
 
 def estimate_inputs(returns: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
     mu = np.expm1(returns.mean().values * TRADING_DAYS)
@@ -21,7 +22,8 @@ def max_sharpe(returns: pd.DataFrame, rf: float = RISK_FREE_RATE) -> np.ndarray:
     objective = cp.Minimize(cp.quad_form(y, sigma))
     constraints = [
         (mu - rf) @ y == 1,
-        y >= 0
+        y >= 0,
+        y <= MAX_POSITION * cp.sum(y)
     ]
 
     prob = cp.Problem(objective, constraints)
