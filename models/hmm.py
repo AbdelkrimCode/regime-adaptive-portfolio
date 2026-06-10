@@ -186,7 +186,8 @@ def plot_state_selection(scores_df: pd.DataFrame, output_path: str | None = None
 
 def label_states(model: GaussianHMM) -> dict:
     state_means = model.means_[:, 0]
-    ranking = np.argsort(state_means)
+    state_vols  = model.means_[:, 1] if model.means_.shape[1] > 1 else np.zeros(len(state_means))
+    ranking = np.argsort(state_means - 0.5 * state_vols)
     n = len(ranking)
     if n == 2:
         return {
