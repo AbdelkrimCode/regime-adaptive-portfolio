@@ -4,8 +4,9 @@ from data.risk_free import fetch_risk_free
 from backtest.metrics import compute_all
 from config import load_config as _load_config
 
-TRANSACTION_COST = _load_config()["backtest"]["transaction_cost"]
-MIN_HISTORY      = _load_config()["hmm"]["min_train_days"] // 2
+CFG = _load_config()
+TRANSACTION_COST = CFG["backtest"]["transaction_cost"]
+MIN_HISTORY      = CFG["hmm"]["min_train_days"] // 2
 
 def apply_transaction_costs(weights: pd.DataFrame, returns: pd.Series) -> pd.Series:
     weight_changes = weights.diff().abs().sum(axis=1)
@@ -109,8 +110,6 @@ def get_risk_parity_equity(returns: pd.DataFrame) -> tuple[pd.Series, pd.Series]
     return port_returns, equity
 
 def run() -> dict:
-    from config import load_config
-    CFG = load_config()
 
     returns = pd.read_parquet(CFG["paths"]["returns"])
     backtest = pd.read_parquet(CFG["paths"]["backtest_results"])
