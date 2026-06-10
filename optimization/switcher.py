@@ -42,7 +42,11 @@ def compute_weights(regimes_df: pd.DataFrame, returns: pd.DataFrame) -> pd.DataF
 
         if regime != current_regime or is_retrain:
             current_rf = float(rf_series.reindex([date], method="ffill").iloc[0])
+            if np.isnan(current_rf):
+                current_rf = float(rf_series.iloc[0])
+
             # All four optimizers recomputed together — blending requires consistent weights across regimes
+            
             for label in ["Bull", "Bear", "Sideways", "Crash"]:
                 if label == "Bull":
                     raw = max_sharpe(available_returns, rf=current_rf)
