@@ -1,10 +1,11 @@
 import os
 import yfinance as yf
 import pandas as pd
+from config import load_config
 
+START    = load_config()["evaluation"].get("data_start", "2005-01-01")
+END      = load_config()["evaluation"]["data_end"]
 TICKERS = ["SPY", "TLT", "GLD", "EFA", "IEF", "QQQ", "LQD", "VNQ"]
-START    = "2005-01-01"
-END      = "2024-12-31"
 RAW_DIR  = os.path.join(os.path.dirname(__file__), "raw")
 RAW_PATH = os.path.join(RAW_DIR, "prices.parquet")
 
