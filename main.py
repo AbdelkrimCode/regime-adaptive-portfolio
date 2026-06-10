@@ -128,17 +128,18 @@ def main(retrain: bool = False, charts: bool = True, walk_forward: bool = True) 
     print_metrics(results)
     turnover = average_turnover(weights)
     print(f"\n  Average daily turnover: {turnover:.4f} ({turnover * 100:.2f}% of portfolio per day)")
-    print(f"  Implied annual transaction cost: {turnover * 0.0002 * 252 * 100:.4f}%")
+    print(f"  Implied annual transaction cost: {turnover * CFG['backtest']['transaction_cost'] * 252 * 100:.4f}%")
 
     print("\n--- Held-out test period (2019–2024) ---")
     test_start = CFG["evaluation"]["test_start"]
-    test_result, test_weights = run_period(
+    data_end = CFG["evaluation"]["data_end"]
+    test_result, _ = run_period(
         start=test_start,
-        end="2024-12-31",
+        end=data_end,
         regimes_df=regimes
     )
     returns = pd.read_parquet(CFG["paths"]["returns"])
-    spy_test = returns.loc[test_start:, "SPY"]
+    spy_test = returns.loc[test_start:data_end, "SPY"]
     spy_test_equity = (1 + spy_test).cumprod()
     
     rf = fetch_risk_free()
