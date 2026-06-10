@@ -218,10 +218,12 @@ def get_transition_matrix(model: GaussianHMM, state_labels: dict) -> pd.DataFram
     return transmat
 
 def get_regime_durations(transmat: pd.DataFrame) -> pd.Series:
-    avg_durations = 1 / (1 - pd.Series({
+    diag = pd.Series({
         regime: transmat.loc[regime, regime]
         for regime in transmat.index
-    }))
+    })
+    diag = diag.clip(upper=1 - 1e-10)
+    avg_durations = 1 / (1 - diag)
     avg_durations.name = "avg_duration_days"
     return avg_durations.round(1)
 
