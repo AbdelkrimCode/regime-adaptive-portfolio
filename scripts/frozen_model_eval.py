@@ -15,21 +15,22 @@ CFG = load_config()
 
 FREEZE_DATE = CFG["evaluation"]["train_end"]
 TEST_START  = CFG["evaluation"]["test_start"]
-TEST_END    = "2024-12-31"
+TEST_END      = CFG["evaluation"]["data_end"]
 FEATURES_COLS = pd.read_parquet(CFG["paths"]["features"]).columns.tolist()
 
 def train_frozen_model() -> tuple:
     df = load_features()
+    features_cols = df.columns.tolist()
     train_df = df.loc[:FREEZE_DATE]
-    features = train_df[FEATURES_COLS].values
+    features = train_df[features_cols].values
     model, scaler = fit_hmm(features)
     print(f"Frozen model trained on {len(train_df)} days (up to {FREEZE_DATE})")
     print(f"  n_states selected: {model.n_components}")
-    return model, scaler, df
+    return model, scaler, df, features_cols
 
-def build_regimes(model, scaler, df: pd.DataFrame) -> pd.DataFrame:
+def build_regimes(model, scaler, df: pd.DataFrame, features_cols: list[str]) -> pd.DataFrame:
     test_df = df.loc[TEST_START:TEST_END]
-    features_scaled = scaler.transform(test_df[FEATURES_COLS].values)
+    features_scaled = scaler.transform(test_df[features_cols].values)
     hidden_states, posteriors = forward_filter(model, features_scaled)
     state_labels = label_states(model)
 
@@ -50,8 +51,8 @@ def run_frozen_eval() -> None:
     print(f"  Test:  {TEST_START} → {TEST_END}")
     print("=" * 50)
 
-    model, scaler, df = train_frozen_model()
-    regimes = build_regimes(model, scaler, df)
+    model, scaler, df, features_cols = train_frozen_model()
+    regimes = build_regimes(model, scaler, df, features_cols)
 
     returns = pd.read_parquet(CFG["paths"]["returns"])
     weights = compute_weights(regimes, returns)
