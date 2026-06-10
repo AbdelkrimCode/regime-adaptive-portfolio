@@ -278,6 +278,12 @@ def walk_forward_regimes(df: pd.DataFrame, n_jobs: int | None = None) -> pd.Data
         all_regimes.append(period_df)
         n_states_log.append(n_states_entry)
 
+    if not all_regimes:
+        raise ValueError(
+            "walk_forward_regimes: no folds produced output. "
+            "Check min_train_days or data length."
+        )
+    
     result = pd.concat(all_regimes)
     result["is_retrain_date"] = False
     result.loc[result.index.isin(retrain_dates), "is_retrain_date"] = True
