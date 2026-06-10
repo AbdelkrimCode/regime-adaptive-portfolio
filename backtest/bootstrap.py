@@ -16,7 +16,7 @@ def block_resample(returns : pd.Series, block_length: int, rng: np.random.Genera
     resampled = []
 
     while len(resampled) < n:
-        start = rng.integers(0, n - block_length)
+        start = rng.integers(0, n - block_length + 1)
         block = values[start:start + block_length]
         resampled.extend(block)
 
