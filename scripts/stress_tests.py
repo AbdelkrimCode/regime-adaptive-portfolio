@@ -73,15 +73,16 @@ def paired_block_bootstrap(
 
     rng = np.random.default_rng(RANDOM_STATE)
     n = len(port_returns)
-    n_blocks = n // block_size
-
+    
     d_boot = []
     for _ in range(n_sim):
-        block_starts = rng.integers(0, n - block_size, size=n_blocks)
-        indices = np.concatenate([
-            np.arange(start, start + block_size) for start in block_starts
-        ])
-        indices = indices[:n]
+        indices = []
+        while len(indices) < n:
+            start = rng.integers(0, n - block_size + 1)
+            indices.extend(range(int(start), int(start) + block_size))
+            
+        indices = np.array(indices[:n])
+
 
         port_sample = port_returns.values[indices]
         spy_sample = spy_returns.values[indices]
