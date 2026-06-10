@@ -46,14 +46,18 @@ def compute_weights(regimes_df: pd.DataFrame, returns: pd.DataFrame) -> pd.DataF
                 current_rf = float(rf_series.iloc[0])
 
             # All four optimizers recomputed together — blending requires consistent weights across regimes
-            
+
             for label in ["Bull", "Bear", "Sideways", "Crash"]:
                 if label == "Bull":
                     raw = max_sharpe(available_returns, rf=current_rf)
                 else:
                     raw = get_weights(label, available_returns)
                 raw = np.clip(raw, 0, None)
-                raw = raw / np.sum(raw)
+                total = np.sum(raw)
+                if total <= 0:
+                    raw = np.ones(len(raw)) / len(raw)
+                else:
+                    raw = raw / total
                 if np.max(raw) > CONCENTRATION_GUARD:
                         raw = np.ones(len(assets)) / len(assets)
                 cached_weights[label] = raw
