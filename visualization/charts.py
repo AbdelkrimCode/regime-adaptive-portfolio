@@ -68,13 +68,13 @@ def plot_regime_overlay(backtest: pd.DataFrame, regimes: pd.Series, ax=None):
         if regime != prev_regime:
             ax.axvspan(prev_date, date,
                       alpha=0.15,
-                      color=REGIME_COLORS[prev_regime])
+                      color=REGIME_COLORS.get(prev_regime, "#95a5a6"))
             prev_date = date
             prev_regime = regime
     
     ax.axvspan(prev_date, regimes_aligned.index[-1],
               alpha=0.15,
-              color=REGIME_COLORS[prev_regime])
+              color=REGIME_COLORS.get(prev_regime, "#95a5a6"))
     
     patches = [mpatches.Patch(color=v, alpha=0.4, label=k)
                for k, v in REGIME_COLORS.items()]
