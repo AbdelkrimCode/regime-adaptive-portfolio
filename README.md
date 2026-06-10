@@ -336,6 +336,7 @@ regime-adaptive-portfolio/
 │   ├── walk_forward_audit.csv  # 74 folds, 0 leakage confirmed
 │   └── ablation_results.csv
 ├── tests/
+│   ├── conftest.py        # 1 test — fixture module
 │   ├── test_metrics.py    # 14 tests — metrics module
 │   ├── test_hmm.py        # 14 tests — HMM module
 │   ├── test_engine.py     # 9 tests — backtest engine
