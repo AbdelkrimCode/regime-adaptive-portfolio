@@ -90,3 +90,58 @@ def test_simulate_constant_weights_produce_expected_return():
     result = simulate(weights, returns)
     for r in result["portfolio_return"]:
         assert r == pytest.approx(0.01, abs=1e-2)
+
+def setup_run_environment(tmp_path, monkeypatch):
+    import backtest.engine as engine_mod
+
+    idx = pd.date_range("2020-01-01", periods=60)
+    returns = pd.DataFrame(
+        {"A": [0.001] * 60, "B": [0.0005] * 60},
+        index=idx
+    )
+    regimes = pd.DataFrame({
+        "regime": ["Bull"] * 60,
+        "p_bull": [1.0] * 60,
+        "p_bear": [0.0] * 60,
+        "p_sideways": [0.0] * 60,
+        "p_crash": [0.0] * 60,
+        "is_retrain_date": [False] * 60,
+    }, index=idx)
+
+    returns_path = tmp_path / "returns.parquet"
+    results_path = tmp_path / "backtest_results.parquet"
+    returns.to_parquet(returns_path)
+
+    monkeypatch.setitem(engine_mod.CFG["paths"], "returns", str(returns_path))
+    monkeypatch.setitem(engine_mod.CFG["paths"], "backtest_results", str(results_path))
+
+    return engine_mod, regimes, results_path
+
+
+def test_run_save_true_writes_backtest_results(tmp_path, monkeypatch):
+    engine_mod, regimes, results_path = setup_run_environment(tmp_path, monkeypatch)
+
+    result, weights = engine_mod.run(regimes_df=regimes, save=True)
+
+    assert results_path.exists()
+    assert "portfolio_return" in result.columns
+
+
+def test_run_save_false_does_not_write_backtest_results(tmp_path, monkeypatch):
+    engine_mod, regimes, results_path = setup_run_environment(tmp_path, monkeypatch)
+
+    result, weights = engine_mod.run(regimes_df=regimes, save=False)
+
+    assert not results_path.exists(), (
+        "save=False should not touch the shared backtest_results file "
+        "(this is what makes parallel sensitivity_sweep.py workers safe)"
+    )
+    assert "portfolio_return" in result.columns
+
+
+def test_run_default_still_saves_for_backward_compatibility(tmp_path, monkeypatch):
+    engine_mod, regimes, results_path = setup_run_environment(tmp_path, monkeypatch)
+
+    engine_mod.run(regimes_df=regimes)  # no explicit save= arg
+
+    assert results_path.exists()

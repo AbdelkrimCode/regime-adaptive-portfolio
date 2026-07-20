@@ -37,7 +37,7 @@ def run_single(name: str, config: dict) -> dict:
     regimes = walk_forward_regimes(features)
     regimes.to_parquet(CFG["paths"]["regimes"])
 
-    backtest, _ = run_backtest(regimes_df=regimes)
+    backtest, _ = run_backtest(regimes_df=regimes, save=False)
     full_metrics = compute_all(backtest["portfolio_return"], backtest["equity"], rf=rf)
 
     test_result, _ = run_period(start=TEST_START, end=CFG["evaluation"]["data_end"], regimes_df=regimes, returns_df=returns)
