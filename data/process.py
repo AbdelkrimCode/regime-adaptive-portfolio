@@ -9,8 +9,8 @@ RETURNS_PATH  = CFG["paths"]["returns"]
 FEATURES_PATH = CFG["paths"]["features"]
 PROCESSED_DIR = os.path.dirname(RETURNS_PATH)
 
-VOL_WINDOW  = 21   
-CORR_WINDOW = 63   
+VOL_WINDOW  = CFG["features"]["vol_window"]
+CORR_WINDOW = CFG["features"]["corr_window"]   
 
 
 def compute_returns(prices: pd.DataFrame) -> pd.DataFrame:
