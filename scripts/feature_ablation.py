@@ -30,14 +30,10 @@ def run_single(name: str, config: dict) -> dict:
     else:
         features = compute_features(returns, vol_window=config["vol_window"], corr_window=config["corr_window"])
 
-    features.to_parquet(CFG["paths"]["features"])
-    returns.to_parquet(CFG["paths"]["returns"])
-
     rf = fetch_risk_free()
     regimes = walk_forward_regimes(features)
-    regimes.to_parquet(CFG["paths"]["regimes"])
 
-    backtest, _ = run_backtest(regimes_df=regimes, save=False)
+    backtest, _ = run_backtest(regimes_df=regimes, returns_df=returns, save=False)
     full_metrics = compute_all(backtest["portfolio_return"], backtest["equity"], rf=rf)
 
     test_result, _ = run_period(start=TEST_START, end=CFG["evaluation"]["data_end"], regimes_df=regimes, returns_df=returns)
@@ -54,26 +50,15 @@ def run_single(name: str, config: dict) -> dict:
 
 def main() -> None:
     results = []
-    try:
-        for name, config in FEATURE_SETS.items():
-            result = run_single(name, config)
-            results.append(result)
-            pd.DataFrame(results).to_csv(RESULTS_PATH, index=False)
-            print(f"  Saved to {RESULTS_PATH}")
+    for name, config in FEATURE_SETS.items():
+        result = run_single(name, config)
+        results.append(result)
+        pd.DataFrame(results).to_csv(RESULTS_PATH, index=False)
+        print(f"  Saved to {RESULTS_PATH}")
 
-        df = pd.DataFrame(results)
-        print("\n=== Feature Ablation Results ===")
-        print(df.to_string(index=False))
-    finally:
-        prices = fetch_prices()
-        returns = compute_returns(prices)
-        baseline = FEATURE_SETS["baseline"]
-        features = compute_features(returns,
-            vol_window=baseline["vol_window"],
-            corr_window=baseline["corr_window"])
-        features.to_parquet(CFG["paths"]["features"])
-        returns.to_parquet(CFG["paths"]["returns"])
-        print("\nBaseline features restored.")
+    df = pd.DataFrame(results)
+    print("\n=== Feature Ablation Results ===")
+    print(df.to_string(index=False))
 
 if __name__ == "__main__":
     main()

@@ -145,3 +145,30 @@ def test_run_default_still_saves_for_backward_compatibility(tmp_path, monkeypatc
     engine_mod.run(regimes_df=regimes)  # no explicit save= arg
 
     assert results_path.exists()
+    
+def test_run_accepts_returns_df_directly_without_reading_disk(tmp_path, monkeypatch):
+    import backtest.engine as engine_mod
+
+    idx = pd.date_range("2020-01-01", periods=60)
+    returns_in_memory = pd.DataFrame(
+        {"A": [0.002] * 60, "B": [0.001] * 60},
+        index=idx
+    )
+    regimes = pd.DataFrame({
+        "regime": ["Bull"] * 60,
+        "p_bull": [1.0] * 60,
+        "p_bear": [0.0] * 60,
+        "p_sideways": [0.0] * 60,
+        "p_crash": [0.0] * 60,
+        "is_retrain_date": [False] * 60,
+    }, index=idx)
+
+    # Point CFG at a path that does not exist - if run() tried to fall back
+    # to reading from disk instead of using returns_df, this would raise.
+    nonexistent_path = str(tmp_path / "does_not_exist.parquet")
+    monkeypatch.setitem(engine_mod.CFG["paths"], "returns", nonexistent_path)
+
+    result, weights = engine_mod.run(regimes_df=regimes, returns_df=returns_in_memory, save=False)
+
+    assert "portfolio_return" in result.columns
+    assert not (tmp_path / "does_not_exist.parquet").exists()
