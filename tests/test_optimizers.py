@@ -58,10 +58,11 @@ def test_risk_parity_respects_floor():
 
 def test_risk_parity_respects_cap():
     assert np.all(risk_parity(make_returns()) <= MAX_POSITION + 1e-6)
-    
+
 def test_risk_parity_achieves_equal_risk_contribution():
+    from optimization.risk_parity import estimate_covariance
     returns = make_returns()
-    sigma = np.cov(returns.values, rowvar=False) * 252
+    sigma = estimate_covariance(returns)  # same covariance the optimizer solves against
 
     w = risk_parity(returns)
     risk_contrib = w * (sigma @ w)
