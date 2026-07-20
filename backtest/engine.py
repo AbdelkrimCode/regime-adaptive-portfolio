@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from optimization.switcher import compute_weights
+from backtest.metrics import compute_turnover
 from config import load_config
 
 CFG = load_config()
@@ -17,7 +18,7 @@ def simulate(weights: pd.DataFrame, returns: pd.DataFrame) -> pd.DataFrame:
 
     port_returns = (weights_shifted.values * returns_aligned.values).sum(axis=1)
 
-    weight_changes = weights_shifted.diff().abs().sum(axis=1)
+    weight_changes = compute_turnover(weights_shifted)
     costs = weight_changes * CFG["backtest"]["transaction_cost"]
 
     port_returns = port_returns - costs.values
