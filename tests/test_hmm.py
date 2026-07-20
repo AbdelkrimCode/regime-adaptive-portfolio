@@ -158,3 +158,52 @@ def test_get_regime_durations_all_positive():
     )
     durations = get_regime_durations(transmat)
     assert (durations > 0).all()
+def test_fit_hmm_core_attaches_convergence_diagnostics(monkeypatch):
+    import models.hmm as hmm_mod
+
+    monkeypatch.setitem(hmm_mod.CFG["hmm"], "n_init", 2)
+    rng = np.random.default_rng(0)
+    features = rng.normal(0, 1, (200, 3))
+
+    model = hmm_mod._fit_hmm_core(features, n_states=3)
+
+    assert model is not None
+    assert hasattr(model, "converged_")
+    assert hasattr(model, "n_failed_restarts_")
+    assert isinstance(model.converged_, bool)
+
+
+def test_fit_hmm_core_flags_non_convergence_with_low_n_iter(monkeypatch, capsys):
+    import models.hmm as hmm_mod
+
+    monkeypatch.setitem(hmm_mod.CFG["hmm"], "n_iter", 1)
+    monkeypatch.setitem(hmm_mod.CFG["hmm"], "n_init", 2)
+
+    # Well-separated clusters so a real fit needs more than 1 EM step to settle.
+    rng = np.random.default_rng(0)
+    features = rng.normal(0, 1, (900, 3))
+    features[:300, 0] += 3
+    features[300:600, 0] -= 3
+
+    model = hmm_mod._fit_hmm_core(features, n_states=3)
+
+    assert model is not None
+    assert model.converged_ is False
+    captured = capsys.readouterr()
+    assert "did not converge" in captured.out
+
+
+def test_fit_hmm_core_converged_true_with_ample_n_iter(monkeypatch):
+    import models.hmm as hmm_mod
+
+    monkeypatch.setitem(hmm_mod.CFG["hmm"], "n_init", 2)
+
+    rng = np.random.default_rng(0)
+    features = rng.normal(0, 1, (900, 3))
+    features[:300, 0] += 3
+    features[300:600, 0] -= 3
+
+    model = hmm_mod._fit_hmm_core(features, n_states=3)
+
+    assert model is not None
+    assert model.converged_ is True
