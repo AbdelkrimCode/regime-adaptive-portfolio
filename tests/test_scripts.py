@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+import os
 
 from backtest.bootstrap import run_bootstrap
 
@@ -22,7 +23,7 @@ def test_bootstrap_sharpe_differs_with_rf():
         df_no_rf["port_sharpe"].mean(),
         df_with_rf["port_sharpe"].mean(),
         atol=1e-4
-    ), "Sharpe should differ when rf is applied"
+    )
 
 
 from scripts.sensitivity_sweep import run_single as sweep_run_single
@@ -59,16 +60,6 @@ def test_ablation_run_single_keys():
     }
     assert set(result.keys()) == expected_keys
 
-def test_ablation_restore_block_no_crash(tmp_path):
-    prices = fetch_prices()
-    returns = compute_returns(prices)
-    baseline = FEATURE_SETS["baseline"]
-    features = compute_features(returns,
-        vol_window=baseline["vol_window"],
-        corr_window=baseline["corr_window"])
-    features.to_parquet(tmp_path / "features.parquet")
-    returns.to_parquet(tmp_path / "returns.parquet")
-
 from models.hmm import _fit_hmm_core, forward_filter
 from sklearn.preprocessing import StandardScaler
 
@@ -87,12 +78,53 @@ def test_forward_filter_differs_from_viterbi():
     _, ff_posteriors = forward_filter(model, features_scaled)
     viterbi_posteriors = model.predict_proba(features_scaled)
 
-    assert not np.allclose(ff_posteriors, viterbi_posteriors, atol=1e-3), \
-        "Forward filter and Viterbi posteriors should differ"
+    assert not np.allclose(ff_posteriors, viterbi_posteriors, atol=1e-3)
 
     def entropy(p):
         p = np.clip(p, 1e-10, 1)
         return -np.sum(p * np.log(p), axis=1).mean()
 
-    assert entropy(ff_posteriors) > entropy(viterbi_posteriors), \
-        "Forward filter should be more uncertain than Viterbi"
+    assert entropy(ff_posteriors) > entropy(viterbi_posteriors)
+    
+def test_ablation_run_single_does_not_touch_production_paths(monkeypatch):
+    import scripts.feature_ablation as ablation_mod
+
+    n = 700
+    dates = pd.date_range("2018-01-01", periods=n, freq="B")
+    rng = np.random.default_rng(3)
+    log_returns = rng.normal(0.0003, 0.01, (n, 4))
+    prices = pd.DataFrame(
+        100 * np.exp(np.cumsum(log_returns, axis=0)),
+        index=dates,
+        columns=["SPY", "TLT", "GLD", "EFA"],
+    )
+    rf = pd.Series(0.0001, index=dates)
+
+    # Point every path run_single could plausibly write to at nonexistent
+    # files. If the old bug (writing features/returns/regimes to disk) were
+    # still present, this would either raise (parent dir missing) or the
+    # existence assertions below would catch it.
+    bogus_paths = {
+        "features": "/tmp/should_not_be_written_features.parquet",
+        "returns": "/tmp/should_not_be_written_returns.parquet",
+        "regimes": "/tmp/should_not_be_written_regimes.parquet",
+    }
+    for key, path in bogus_paths.items():
+        if os.path.exists(path):
+            os.remove(path)
+        monkeypatch.setitem(ablation_mod.CFG["paths"], key, path)
+
+    monkeypatch.setattr(ablation_mod, "fetch_prices", lambda: prices)
+    monkeypatch.setattr(ablation_mod, "fetch_risk_free", lambda: rf)
+    monkeypatch.setattr(ablation_mod, "TEST_START", "2020-01-01")
+
+    result = ablation_mod.run_single("baseline", ablation_mod.FEATURE_SETS["baseline"])
+
+    expected_keys = {
+        "feature_set", "sharpe", "max_drawdown",
+        "calmar", "held_out_sharpe", "held_out_drawdown"
+    }
+    assert set(result.keys()) == expected_keys
+
+    for path in bogus_paths.values():
+        assert not os.path.exists(path), f"run_single wrote to {path} - should be in-memory only"

@@ -31,15 +31,20 @@ def simulate(weights: pd.DataFrame, returns: pd.DataFrame) -> pd.DataFrame:
         "equity": equity
     })
 
-def run(regimes_df: pd.DataFrame | None = None, save: bool = True) -> tuple[pd.DataFrame, pd.DataFrame]:
+def run(
+    regimes_df: pd.DataFrame | None = None,
+    returns_df: pd.DataFrame | None = None,
+    save: bool = True,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     if regimes_df is None:
         regimes_df = pd.read_parquet(CFG["paths"]["regimes"])
 
-    returns = pd.read_parquet(CFG["paths"]["returns"])
+    if returns_df is None:
+        returns_df = pd.read_parquet(CFG["paths"]["returns"])
 
-    weights = compute_weights(regimes_df, returns)
+    weights = compute_weights(regimes_df, returns_df)
 
-    result = simulate(weights, returns)
+    result = simulate(weights, returns_df)
     if save:
         result.to_parquet(CFG["paths"]["backtest_results"])
 
