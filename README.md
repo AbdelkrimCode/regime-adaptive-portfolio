@@ -2,8 +2,7 @@
 
 Algorithmic portfolio optimizer combining Hidden Markov Model regime detection with convex optimization.
 
-![Python](https://img.shields.io/badge/python-3.10+-blue) ![License](https://img.shields.io/badge/license-MIT-green) ![Tests](https://github.com/AbdelkrimCode/regime-adaptive-portfolio/actions/workflows/test.yaml/badge.svg)
-
+![Python](https://img.shields.io/badge/python-3.10+-blue) ![License](https://img.shields.io/badge/license-MIT-green) ![Tests](https://github.com/AbdelkrimCode/regime-adaptive-portfolio/actions/workflows/tests.yml/badge.svg)
 ---
 
 ## How It Works
