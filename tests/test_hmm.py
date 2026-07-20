@@ -6,7 +6,7 @@ from models.hmm import (
     count_params,
     select_n_states,
     label_states,
-    get_transition_matrix,
+    get_fitted_transition_matrix,
     get_regime_durations,
 )
 from backtest.bootstrap import block_resample
@@ -102,7 +102,7 @@ def test_label_states_ordering():
     assert labels[ranking[3]] == "Bull"
 
 
-def test_get_transition_matrix_shape():
+def test_get_fitted_transition_matrix_shape():
     model = MagicMock()
     model.n_components = 4
     model.transmat_ = np.array([
@@ -112,12 +112,12 @@ def test_get_transition_matrix_shape():
         [0.02, 0.01, 0.02, 0.95],
     ])
     state_labels = {0: "Bear", 1: "Sideways", 2: "Bull", 3: "Crash"}
-    transmat = get_transition_matrix(model, state_labels)
+    transmat = get_fitted_transition_matrix(model, state_labels)
     assert transmat.shape == (4, 4)
     assert list(transmat.index) == ["Bear", "Sideways", "Bull", "Crash"]
 
 
-def test_get_transition_matrix_rows_sum_to_one():
+def test_get_fitted_transition_matrix_rows_sum_to_one():
     model = MagicMock()
     model.n_components = 4
     model.transmat_ = np.array([
@@ -127,7 +127,7 @@ def test_get_transition_matrix_rows_sum_to_one():
         [0.02, 0.01, 0.02, 0.95],
     ])
     state_labels = {0: "Bear", 1: "Sideways", 2: "Bull", 3: "Crash"}
-    transmat = get_transition_matrix(model, state_labels)
+    transmat = get_fitted_transition_matrix(model, state_labels)
     for row_sum in transmat.sum(axis=1):
         assert row_sum == pytest.approx(1.0, abs=1e-6)
 
@@ -158,6 +158,7 @@ def test_get_regime_durations_all_positive():
     )
     durations = get_regime_durations(transmat)
     assert (durations > 0).all()
+
 def test_fit_hmm_core_attaches_convergence_diagnostics(monkeypatch):
     import models.hmm as hmm_mod
 
@@ -207,3 +208,63 @@ def test_fit_hmm_core_converged_true_with_ample_n_iter(monkeypatch):
 
     assert model is not None
     assert model.converged_ is True
+
+
+def test_label_states_uses_feature_cols_when_columns_reordered():
+    # means_ columns are in order [mean_corr, spy_vol, spy_return] here -
+    # the opposite of the assumed default [spy_return, spy_vol, mean_corr].
+    # Positional fallback (index 0/1) would rank by mean_corr - 0.5*spy_vol,
+    # giving the wrong answer. Name-based lookup should get it right regardless.
+    model = MagicMock()
+    model.means_ = np.array([
+        [0.6, 0.03, -0.002],
+        [0.4, 0.01, 0.002],
+        [0.5, 0.02, 0.0],
+        [0.3, 0.008, -0.001],
+    ])
+    feature_cols = ["mean_corr", "spy_vol", "spy_return"]
+
+    labels = label_states(model, feature_cols=feature_cols)
+
+    return_idx = feature_cols.index("spy_return")
+    vol_idx = feature_cols.index("spy_vol")
+    expected_ranking = np.argsort(model.means_[:, return_idx] - 0.5 * model.means_[:, vol_idx])
+
+    assert labels[expected_ranking[0]] == "Crash"
+    assert labels[expected_ranking[3]] == "Bull"
+
+
+def test_label_states_skew_kurt_variant_ranks_by_return_only():
+    # skew_kurt ablation variant has columns [spy_return, spy_skew, spy_kurt] -
+    # no spy_vol at all. Should rank purely by return, NOT silently treat
+    # spy_skew as if it were volatility (that was the bug).
+    model = MagicMock()
+    model.means_ = np.array([
+        [-0.002, 0.5, 3.0],
+        [0.002, -0.3, 4.0],
+        [0.0005, 0.1, 3.5],
+        [-0.0008, 0.2, 5.0],
+    ])
+    feature_cols = ["spy_return", "spy_skew", "spy_kurt"]
+
+    labels = label_states(model, feature_cols=feature_cols)
+
+    ranking_by_return_only = np.argsort(model.means_[:, 0])
+    assert labels[ranking_by_return_only[0]] == "Crash"
+    assert labels[ranking_by_return_only[3]] == "Bull"
+
+
+def test_label_states_no_feature_cols_falls_back_to_positional():
+    # Backward compatibility: existing callers that don't pass feature_cols
+    # keep the original [index 0, index 1] behavior.
+    model = MagicMock()
+    model.means_ = np.array([
+        [-0.002, 0.03],
+        [0.002, 0.01],
+        [0.0, 0.02],
+        [-0.001, 0.008],
+    ])
+    labels = label_states(model)
+    ranking = np.argsort(model.means_[:, 0] - 0.5 * model.means_[:, 1])
+    assert labels[ranking[0]] == "Crash"
+    assert labels[ranking[3]] == "Bull"

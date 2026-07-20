@@ -44,9 +44,7 @@ def print_subperiod_analysis(regimes_df: pd.DataFrame, returns: pd.DataFrame) ->
             print(f"  {metric:<25} {port_metrics[metric]:>12} {spy_metrics[metric]:>12}")
         print()
 
-def print_regime_diagnostics(regimes_df: pd.DataFrame) -> None:
-    print("\n--- Regime Diagnostics ---\n")
-
+def compute_regime_runs(regimes_df: pd.DataFrame) -> pd.DataFrame:
     regime_seq = regimes_df["regime"]
 
     runs = []
@@ -60,7 +58,30 @@ def print_regime_diagnostics(regimes_df: pd.DataFrame) -> None:
             current = label
             count = 1
     runs.append({"regime": current, "duration": count})
-    runs_df = pd.DataFrame(runs)
+    return pd.DataFrame(runs)
+
+
+def compute_empirical_transition_matrix(runs_df: pd.DataFrame, labels: list[str]) -> pd.DataFrame:
+    """Empirical, run-based transition matrix: counts actual observed regime-label
+    transitions in a walk-forward output (% of exits from each regime).
+
+    This is distinct from models.hmm.get_fitted_transition_matrix(), which reads
+    a single HMM model's own theoretical transmat_ parameter directly - the two
+    are not interchangeable and will not generally agree."""
+    trans = pd.DataFrame(0, index=labels, columns=labels)
+    for i in range(len(runs_df) - 1):
+        from_r = runs_df.iloc[i]["regime"]
+        to_r = runs_df.iloc[i + 1]["regime"]
+        if from_r in labels and to_r in labels:
+            trans.loc[from_r, to_r] += 1
+
+    return trans.div(trans.sum(axis=1).replace(0, np.nan), axis=0) * 100
+
+
+def print_regime_diagnostics(regimes_df: pd.DataFrame) -> None:
+    print("\n--- Regime Diagnostics ---\n")
+
+    runs_df = compute_regime_runs(regimes_df)
 
     print("Regime run-length statistics (days):")
     print(f"  {'Regime':<12} {'Count':>8} {'Mean':>8} {'Median':>8} {'Min':>8} {'Max':>8}")
@@ -73,14 +94,8 @@ def print_regime_diagnostics(regimes_df: pd.DataFrame) -> None:
 
     print("\nEmpirical transition matrix (row → col, % of exits):")
     labels = ["Bull", "Bear", "Sideways", "Crash"]
-    trans = pd.DataFrame(0, index=labels, columns=labels)
-    for i in range(len(runs_df) - 1):
-        from_r = runs_df.iloc[i]["regime"]
-        to_r = runs_df.iloc[i + 1]["regime"]
-        if from_r in labels and to_r in labels:
-            trans.loc[from_r, to_r] += 1
+    trans_pct = compute_empirical_transition_matrix(runs_df, labels)
 
-    trans_pct = trans.div(trans.sum(axis=1).replace(0, np.nan), axis=0) * 100
     print(f"\n  {'':12}", end="")
     for col in labels:
         print(f" {col:>10}", end="")

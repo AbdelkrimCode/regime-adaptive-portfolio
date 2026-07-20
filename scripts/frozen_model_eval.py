@@ -32,7 +32,7 @@ def build_regimes(model, scaler, df: pd.DataFrame, features_cols: list[str]) -> 
     test_df = df.loc[TEST_START:TEST_END]
     features_scaled = scaler.transform(test_df[features_cols].values)
     hidden_states, posteriors = forward_filter(model, features_scaled)
-    state_labels = label_states(model)
+    state_labels = label_states(model, feature_cols = features_cols)
 
     regimes = test_df.copy()
     regimes["state"] = hidden_states
