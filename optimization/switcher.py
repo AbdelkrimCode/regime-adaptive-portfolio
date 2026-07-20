@@ -18,10 +18,22 @@ OPTIMIZER_MAP = {
 
 MIN_HISTORY = CFG["hmm"]["min_train_days"] // 2
 CONCENTRATION_GUARD = 0.99
+SAFE_HAVEN_ASSETS = CFG["optimizer"]["safe_haven_assets"]
 
 def get_weights(regime: str, returns: pd.DataFrame) -> np.ndarray:
     optimizer = OPTIMIZER_MAP[regime]
     return optimizer(returns)
+
+def _concentration_guard_fallback(label: str, assets: list[str]) -> np.ndarray:
+    if label == "Crash":
+        safe_havens = [a for a in SAFE_HAVEN_ASSETS if a in assets]
+        if safe_havens:
+            fallback = np.zeros(len(assets))
+            weight_each = 1.0 / len(safe_havens)
+            for a in safe_havens:
+                fallback[assets.index(a)] = weight_each
+            return fallback
+    return np.ones(len(assets)) / len(assets)
 
 def compute_weights(regimes_df: pd.DataFrame, returns: pd.DataFrame) -> pd.DataFrame:
     assets = returns.columns.tolist()
@@ -59,7 +71,7 @@ def compute_weights(regimes_df: pd.DataFrame, returns: pd.DataFrame) -> pd.DataF
                 else:
                     raw = raw / total
                 if np.max(raw) > CONCENTRATION_GUARD:
-                        raw = np.ones(len(assets)) / len(assets)
+                        raw = _concentration_guard_fallback(label, assets)
                 cached_weights[label] = raw
             current_regime = regime
 
