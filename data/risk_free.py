@@ -2,6 +2,7 @@ import os
 import yfinance as yf
 import pandas as pd
 from config import load_config
+from data.cache_utils import is_cache_valid, write_cache_signature
 
 _CFG = load_config()
 RF_TICKER = "^IRX"
@@ -13,7 +14,9 @@ def fetch_risk_free(
     end: str = _CFG["evaluation"]["data_end"],
     force_refresh: bool = False
 ) -> pd.Series:
-    if os.path.exists(RF_PATH) and not force_refresh:
+    signature = {"start": start, "end": end}
+
+    if not force_refresh and is_cache_valid(RF_PATH, signature):
         return pd.read_parquet(RF_PATH)["rf_daily"]
 
     print("Downloading risk-free rate (^IRX)...")
@@ -26,6 +29,7 @@ def fetch_risk_free(
 
     os.makedirs(os.path.dirname(RF_PATH), exist_ok=True)
     rf_daily.to_frame().to_parquet(RF_PATH)
+    write_cache_signature(RF_PATH, signature)
     print(f"Saved {len(rf_daily)} risk-free rate observations")
     return rf_daily
 
