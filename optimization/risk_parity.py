@@ -23,7 +23,6 @@ def risk_parity(returns: pd.DataFrame) -> np.ndarray:
     
 
     constraints = [
-    cp.sum(w) == 1,
     w >= 0.01,
     w <= MAX_POSITION,
     ]
