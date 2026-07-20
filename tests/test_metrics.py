@@ -8,6 +8,7 @@ from backtest.metrics import (
     max_drawdown,
     calmar_ratio,
     average_turnover,
+    compute_turnover,
     compute_all,
 )
 
@@ -80,19 +81,34 @@ def test_max_drawdown_negative():
 
 
 
-def test_average_turnover_no_change():
+def test_average_turnover_no_change_after_entry():
+
     weights = pd.DataFrame(
         {"A": [0.5, 0.5, 0.5], "B": [0.5, 0.5, 0.5]}
     )
-    assert average_turnover(weights) == pytest.approx(0.0, abs=1e-6)
+    turnover = compute_turnover(weights)
+    assert turnover.iloc[0] == pytest.approx(1.0, abs=1e-6)
+    assert np.allclose(turnover.iloc[1:].values, 0.0, atol=1e-6)
 
 
 def test_average_turnover_known():
+
     weights = pd.DataFrame(
         {"A": [0.5, 0.3, 0.3], "B": [0.5, 0.7, 0.7]}
     )
     result = average_turnover(weights)
-    assert result == pytest.approx(0.4 / 3, abs=1e-3)
+    assert result == pytest.approx((1.0 + 0.4 + 0.0) / 3, abs=1e-3)
+
+
+def test_compute_turnover_first_day_reflects_entry_from_cash():
+
+    weights = pd.DataFrame(
+        {"A": [1.0, 1.0], "B": [0.0, 0.0]}
+    )
+    turnover = compute_turnover(weights)
+    assert turnover.iloc[0] == pytest.approx(1.0, abs=1e-6), (
+        "Entering a 100% position from cash should cost turnover of 1.0, not 0.0"
+    )
 
 
 

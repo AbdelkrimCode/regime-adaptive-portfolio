@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from data.risk_free import fetch_risk_free
-from backtest.metrics import compute_all
+from backtest.metrics import compute_all, compute_turnover
 from config import load_config
 
 CFG = load_config()
@@ -9,7 +9,7 @@ TRANSACTION_COST = CFG["backtest"]["transaction_cost"]
 MIN_HISTORY      = CFG["hmm"]["min_train_days"] // 2
 
 def apply_transaction_costs(weights: pd.DataFrame, returns: pd.Series) -> pd.Series:
-    weight_changes = weights.diff().abs().sum(axis=1)
+    weight_changes = compute_turnover(weights)
     costs = weight_changes * TRANSACTION_COST
     return returns - costs
 

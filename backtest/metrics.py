@@ -36,8 +36,12 @@ def calmar_ratio(equity: pd.Series, returns: pd.Series) -> float:
     mdd = abs(max_drawdown(equity))
     return ann_ret / mdd if mdd != 0 else np.nan
 
+def compute_turnover(weights: pd.DataFrame) -> pd.Series:
+    prior = weights.shift(1).fillna(0.0)
+    return (weights - prior).abs().sum(axis=1)
+
 def average_turnover(weights: pd.DataFrame) -> float:
-    daily_turnover = weights.diff().abs().sum(axis=1)
+    daily_turnover = compute_turnover(weights)
     return round(daily_turnover.mean(), 4)
 
 def compute_all(returns: pd.Series, equity: pd.Series, rf: pd.Series | None = None) -> dict:
@@ -53,4 +57,4 @@ if __name__ == "__main__":
     result = pd.read_parquet("data/backtest_results.parquet")
     metrics = compute_all(result["portfolio_return"], result["equity"])
     for k, v in metrics.items():
-        print(f"{k}: {v}")  
+        print(f"{k}: {v}")
