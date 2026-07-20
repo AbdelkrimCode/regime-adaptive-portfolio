@@ -27,7 +27,7 @@ def run_single(vol_window: int, corr_window: int, n_jobs: int = 1) -> dict:
     rf = fetch_risk_free()
     regimes = walk_forward_regimes(features, n_jobs=n_jobs)
 
-    backtest, _ = run_backtest(regimes_df=regimes)
+    backtest, _ = run_backtest(regimes_df=regimes, save=False)
 
     full_metrics = compute_all(backtest["portfolio_return"], backtest["equity"], rf=rf)
 
