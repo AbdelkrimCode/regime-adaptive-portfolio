@@ -7,6 +7,10 @@ hmm:
   retrain_frequency: "QS"
   n_jobs: 1
 
+features:
+  vol_window: 21
+  corr_window: 63
+
 backtest:
   initial_capital: 1.0
   transaction_cost: 0.0002
