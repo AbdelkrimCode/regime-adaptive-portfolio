@@ -2,6 +2,7 @@ import os
 import yfinance as yf
 import pandas as pd
 from config import load_config
+from data.cache_utils import is_cache_valid, write_cache_signature
 
 START    = load_config()["evaluation"].get("data_start", "2005-01-01")
 END      = load_config()["evaluation"]["data_end"]
@@ -17,7 +18,9 @@ def fetch_prices(
     force_refresh: bool = False,
 ) -> pd.DataFrame:
 
-    if os.path.exists(RAW_PATH) and not force_refresh:
+    signature = {"tickers": sorted(tickers), "start": start, "end": end}
+
+    if not force_refresh and is_cache_valid(RAW_PATH, signature):
         print("Loading cached prices...")
         return pd.read_parquet(RAW_PATH)
 
@@ -35,6 +38,7 @@ def fetch_prices(
 
     os.makedirs(RAW_DIR, exist_ok=True)
     prices.to_parquet(RAW_PATH)
+    write_cache_signature(RAW_PATH, signature)
     print(f"Saved {prices.shape[0]} rows x {prices.shape[1]} tickers")
     return prices
 
