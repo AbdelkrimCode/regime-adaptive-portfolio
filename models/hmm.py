@@ -22,6 +22,7 @@ def _fit_hmm_core(features_scaled: np.ndarray, n_states: int) -> GaussianHMM | N
     best_model = None
     best_score = -np.inf
     last_model = None
+    n_failed = 0
 
     for i in range(CFG["hmm"]["n_init"]):
         try:
@@ -38,9 +39,26 @@ def _fit_hmm_core(features_scaled: np.ndarray, n_states: int) -> GaussianHMM | N
                 best_score = score
                 best_model = model
         except Exception:
+            n_failed += 1
             continue
 
-    return best_model if best_model is not None else last_model
+    chosen = best_model if best_model is not None else last_model
+
+    if chosen is not None:
+        history = chosen.monitor_.history
+        tol = chosen.monitor_.tol
+        chosen.converged_ = bool(
+            len(history) >= 2 and (history[-1] - history[-2] < tol)
+        )
+        chosen.n_failed_restarts_ = n_failed
+        if not chosen.converged_:
+            print(
+                f"      WARNING: HMM fit (n_states={n_states}) did not converge "
+                f"within n_iter={CFG['hmm']['n_iter']} "
+                f"({n_failed}/{CFG['hmm']['n_init']} restarts raised an exception)"
+            )
+
+    return chosen
 
 def forward_filter(model: GaussianHMM, features_scaled: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     from scipy.stats import multivariate_normal
@@ -121,7 +139,11 @@ def _fit_fold(
     for state_idx, label in state_labels.items():
         period_df[f"p_{label.lower()}"] = posteriors[:, state_idx]
 
-    n_states_entry = {"date": retrain_date, "n_states": int(best_n)}
+    n_states_entry = {
+        "date": retrain_date,
+        "n_states": int(best_n),
+        "converged": bool(getattr(model, "converged_", True)),
+    }
     print(f"Fitted {retrain_date.date()} -> test through {next_date.date()}")
     return period_df, n_states_entry
 
@@ -299,8 +321,15 @@ def walk_forward_regimes(df: pd.DataFrame, n_jobs: int | None = None) -> pd.Data
     n_states_df = pd.DataFrame(n_states_log).set_index("date")
     n_states_df.index = pd.DatetimeIndex(n_states_df.index)
     result["n_states_used"] = result.index.map(
-        lambda d: n_states_df["n_states"].asof(d) if not n_states_df.empty else CFG["hmm"]["n_states"]
+        lambda d: n_states_df["n_states"].asof(d) if not n_states_df.empty else CFG["hmm"]["n_states"])
+    result["converged"] = result.index.map(
+        lambda d: bool(n_states_df["converged"].asof(d)) if not n_states_df.empty else True
     )
+
+    n_folds = len(n_states_log)
+    n_converged = sum(1 for entry in n_states_log if entry["converged"])
+    print(f"  HMM convergence: {n_converged}/{n_folds} folds converged")
+    
 
     return result
 
