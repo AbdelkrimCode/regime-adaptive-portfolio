@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import pytest
 from unittest.mock import patch
 
 import optimization.switcher as switcher_mod
@@ -42,12 +43,21 @@ def test_concentration_guard_triggers_on_crash_regime_extreme_weights():
     assert np.max(w) < switcher_mod.CONCENTRATION_GUARD, (
         "Guard should have replaced the 100%-concentrated Crash allocation"
     )
-    # Documents current behavior (see audit §2.6): the fallback is equal-weight
-    # across the FULL 8-asset universe, including risky assets - not just
-    # within the Crash regime's own safe-haven subset (IEF/TLT/GLD). This is a
-    # known design tradeoff, not necessarily the ideal one; this test exists so
-    # that changing it is a deliberate decision, not a silent behavior change.
-    assert np.allclose(w, 1.0 / len(ASSETS), atol=1e-6)
+    # Fallback is now scoped to the Crash regime's own safe-haven subset
+    # (IEF/TLT/GLD), equal-weighted - NOT the full 8-asset universe. Falling
+    # back to the full universe would inject equity/risk exposure at exactly
+    # the moment Crash exists to avoid it (see audit §2.6 - this was a
+    # deliberate fix, not the original documented behavior).
+    safe_havens = switcher_mod.SAFE_HAVEN_ASSETS
+    expected = np.zeros(len(ASSETS))
+    weight_each = 1.0 / len(safe_havens)
+    for a in safe_havens:
+        expected[ASSETS.index(a)] = weight_each
+    assert np.allclose(w, expected, atol=1e-6)
+
+    non_safe_haven_assets = [a for a in ASSETS if a not in safe_havens]
+    for a in non_safe_haven_assets:
+        assert w[ASSETS.index(a)] == pytest.approx(0.0, abs=1e-9)
 
 
 def test_concentration_guard_triggers_on_sideways_regime_extreme_weights():
@@ -93,3 +103,19 @@ def test_concentration_guard_does_not_trigger_on_diversified_weights():
 
     w = weights.loc[date].values
     assert np.allclose(w, diversified, atol=1e-6)
+
+
+def test_concentration_guard_fallback_helper_directly():
+    assets = switcher_mod.OPTIMIZER_MAP.keys()  # just to touch the module
+    all_assets = ["SPY", "TLT", "GLD", "EFA", "IEF", "QQQ", "LQD", "VNQ"]
+
+    crash_fallback = switcher_mod._concentration_guard_fallback("Crash", all_assets)
+    for a in switcher_mod.SAFE_HAVEN_ASSETS:
+        assert crash_fallback[all_assets.index(a)] == pytest.approx(1.0 / len(switcher_mod.SAFE_HAVEN_ASSETS))
+    for a in all_assets:
+        if a not in switcher_mod.SAFE_HAVEN_ASSETS:
+            assert crash_fallback[all_assets.index(a)] == 0.0
+
+    # Non-Crash regimes still fall back to full-universe equal-weight
+    bull_fallback = switcher_mod._concentration_guard_fallback("Bull", all_assets)
+    assert np.allclose(bull_fallback, 1.0 / len(all_assets))
