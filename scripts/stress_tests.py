@@ -91,7 +91,7 @@ def paired_block_bootstrap(
         d_boot.append(d)
 
     d_boot = np.array(d_boot)
-    p_value = float(np.mean(d_boot >= d_observed))
+    p_value = float(np.mean(d_boot <= 0))
 
     return {
         "d_observed": round(d_observed, 4),
