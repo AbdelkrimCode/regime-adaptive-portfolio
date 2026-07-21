@@ -45,6 +45,10 @@ def _fit_hmm_core(features_scaled: np.ndarray, n_states: int) -> GaussianHMM | N
     chosen = best_model if best_model is not None else last_model
 
     if chosen is not None:
+        # hmmlearn's own `monitor_.converged` is True whenever `iter == n_iter`
+        # OR the tolerance was met - i.e. it also counts "ran out of iterations"
+        # as converged. We only want the genuine signal: did the log-likelihood
+        # improvement actually drop below tol before the budget ran out?
         history = chosen.monitor_.history
         tol = chosen.monitor_.tol
         chosen.converged_ = bool(
@@ -128,7 +132,7 @@ def _fit_fold(
         return None
 
     test_features = test_df[features_cols].values
-    state_labels = label_states(model)
+    state_labels = label_states(model, feature_cols=features_cols)
     features_scaled = scaler.transform(test_features)
     hidden_states, posteriors = forward_filter(model, features_scaled)
 
@@ -206,9 +210,19 @@ def plot_state_selection(scores_df: pd.DataFrame, output_path: str | None = None
     plt.close()
     print(f"      Saved to {output_path}")
 
-def label_states(model: GaussianHMM) -> dict:
-    state_means = model.means_[:, 0]
-    state_vols  = model.means_[:, 1] if model.means_.shape[1] > 1 else np.zeros(len(state_means))
+def label_states(model: GaussianHMM, feature_cols: list[str] | None = None) -> dict:
+    if feature_cols is not None and "spy_return" in feature_cols:
+        return_idx = feature_cols.index("spy_return")
+        vol_idx = feature_cols.index("spy_vol") if "spy_vol" in feature_cols else None
+    else:
+        # Backward-compatible fallback for callers that don't pass feature_cols:
+        # assumes the original [spy_return, spy_vol, ...] column order.
+        return_idx = 0
+        vol_idx = 1 if model.means_.shape[1] > 1 else None
+
+    state_means = model.means_[:, return_idx]
+    state_vols = model.means_[:, vol_idx] if vol_idx is not None else np.zeros(len(state_means))
+
     ranking = np.argsort(state_means - 0.5 * state_vols)
     n = len(ranking)
     if n == 2:
@@ -231,7 +245,14 @@ def label_states(model: GaussianHMM) -> dict:
         }
     return {ranking[i]: f"State{i}" for i in range(n)}
 
-def get_transition_matrix(model: GaussianHMM, state_labels: dict) -> pd.DataFrame:
+def get_fitted_transition_matrix(model: GaussianHMM, state_labels: dict) -> pd.DataFrame:
+    """Reads a single fitted model's own theoretical transmat_ parameter directly.
+
+    This is distinct from main.compute_empirical_transition_matrix(), which counts
+    actual observed regime-label transitions across a walk-forward run (possibly
+    spanning many retrained models). The two are not interchangeable and will not
+    generally agree - this one reflects what one specific model learned, the other
+    reflects what actually happened across the full walk-forward output."""
     n = model.n_components
     labels = [state_labels[i] for i in range(n)]
     transmat = pd.DataFrame(
@@ -254,7 +275,7 @@ def get_regime_durations(transmat: pd.DataFrame) -> pd.Series:
 def predict_regimes(model: GaussianHMM, features: np.ndarray,
                     feature_df: pd.DataFrame,
                     scaler: StandardScaler) -> pd.DataFrame:
-    state_labels = label_states(model)
+    state_labels = label_states(model, feature_cols=feature_df.columns.tolist())
     features_scaled = scaler.transform(features)
     hidden_states, posteriors = forward_filter(model, features_scaled)
 
@@ -321,7 +342,8 @@ def walk_forward_regimes(df: pd.DataFrame, n_jobs: int | None = None) -> pd.Data
     n_states_df = pd.DataFrame(n_states_log).set_index("date")
     n_states_df.index = pd.DatetimeIndex(n_states_df.index)
     result["n_states_used"] = result.index.map(
-        lambda d: n_states_df["n_states"].asof(d) if not n_states_df.empty else CFG["hmm"]["n_states"])
+        lambda d: n_states_df["n_states"].asof(d) if not n_states_df.empty else CFG["hmm"]["n_states"]
+    )
     result["converged"] = result.index.map(
         lambda d: bool(n_states_df["converged"].asof(d)) if not n_states_df.empty else True
     )
@@ -329,7 +351,6 @@ def walk_forward_regimes(df: pd.DataFrame, n_jobs: int | None = None) -> pd.Data
     n_folds = len(n_states_log)
     n_converged = sum(1 for entry in n_states_log if entry["converged"])
     print(f"  HMM convergence: {n_converged}/{n_folds} folds converged")
-    
 
     return result
 
@@ -431,8 +452,8 @@ if __name__ == "__main__":
     print("\nTransition Matrix:")
     model, scaler = load_model()
     df = load_features()
-    state_labels = label_states(model)
-    transmat = get_transition_matrix(model, state_labels)
+    state_labels = label_states(model, feature_cols=df.columns.tolist())
+    transmat = get_fitted_transition_matrix(model, state_labels)
     print(transmat.round(4))
     print("\nAverage Regime Durations:")
     print(get_regime_durations(transmat))
