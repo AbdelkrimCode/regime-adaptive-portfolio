@@ -9,7 +9,7 @@ from models.hmm import (
     get_fitted_transition_matrix,
     get_regime_durations,
 )
-from backtest.bootstrap import block_resample
+from backtest.bootstrap import block_resample, block_bootstrap_indices
 
 
 def test_count_params_known():
@@ -268,3 +268,34 @@ def test_label_states_no_feature_cols_falls_back_to_positional():
     ranking = np.argsort(model.means_[:, 0] - 0.5 * model.means_[:, 1])
     assert labels[ranking[0]] == "Crash"
     assert labels[ranking[3]] == "Bull"
+
+    
+def test_block_bootstrap_indices_reused_gives_paired_consistency():
+    # Calling block_bootstrap_indices ONCE and applying the result to two
+    # different series (paired resampling) should select the same positions
+    # from both - this is what makes a paired block bootstrap valid.
+    rng = np.random.default_rng(7)
+    indices = block_bootstrap_indices(n=100, block_length=10, rng=rng)
+
+    series_a = np.arange(100)
+    series_b = np.arange(100) * -1
+
+    sample_a = series_a[indices]
+    sample_b = series_b[indices]
+
+    assert np.array_equal(sample_a, -sample_b)
+
+
+def test_block_bootstrap_indices_matches_block_resample():
+    # block_resample() should produce values consistent with directly
+    # indexing via block_bootstrap_indices with the same seed.
+    returns = pd.Series(np.arange(200, dtype=float))
+
+    rng1 = np.random.default_rng(99)
+    resampled = block_resample(returns, block_length=15, rng=rng1)
+
+    rng2 = np.random.default_rng(99)
+    indices = block_bootstrap_indices(n=200, block_length=15, rng=rng2)
+    expected = returns.values[indices]
+
+    assert np.array_equal(resampled.values, expected)

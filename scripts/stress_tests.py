@@ -3,7 +3,7 @@ import pandas as pd
 from backtest.metrics import compute_all
 from data.risk_free import fetch_risk_free
 from config import load_config
-from backtest.bootstrap import block_resample
+from backtest.bootstrap import block_resample, block_bootstrap_indices
 
 CFG = load_config()
 
@@ -76,13 +76,7 @@ def paired_block_bootstrap(
     
     d_boot = []
     for _ in range(n_sim):
-        indices = []
-        while len(indices) < n:
-            start = rng.integers(0, n - block_size + 1)
-            indices.extend(range(int(start), int(start) + block_size))
-            
-        indices = np.array(indices[:n])
-
+        indices = block_bootstrap_indices(n, block_size, rng)
 
         port_sample = port_returns.values[indices]
         spy_sample = spy_returns.values[indices]
