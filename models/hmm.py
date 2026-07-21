@@ -5,7 +5,7 @@ import joblib
 import os
 from sklearn.preprocessing import StandardScaler
 from config import load_config
-
+from data.cache_utils import is_cache_valid, write_cache_signature
 
 CFG = load_config()
 
@@ -433,9 +433,16 @@ def run(retrain : bool = False, walk_forward : bool = False) -> pd.DataFrame:
         print("Running walk-forward retraining...")
         result = walk_forward_regimes(df)
     else:
-        if retrain or not os.path.exists(CFG["paths"]["model"]):
+        model_path = CFG["paths"]["model"]
+        signature = {
+            "n_states": CFG["hmm"]["n_states"],
+            "feature_cols": df.columns.tolist(),
+        }
+
+        if retrain or not is_cache_valid(model_path, signature):
             model, scaler = fit_hmm(features)
             save_model(model, scaler)
+            write_cache_signature(model_path, signature)
         else:
             model, scaler = load_model()
         result = predict_regimes(model, features, df, scaler)

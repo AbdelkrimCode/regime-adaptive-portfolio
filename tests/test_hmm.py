@@ -334,3 +334,115 @@ def test_select_n_states_returned_model_matches_a_fresh_refit():
 
     assert np.isclose(reused_model.score(features), fresh_model.score(features))
     assert np.allclose(reused_model.means_, fresh_model.means_)
+
+def _make_synthetic_features_file(path, n=300, n_features=3):
+    rng = np.random.default_rng(0)
+    dates = pd.date_range("2015-01-01", periods=n, freq="B")
+    df = pd.DataFrame(
+        rng.normal(0, 1, (n, n_features)),
+        index=dates,
+        columns=["spy_return", "spy_vol", "mean_corr"][:n_features],
+    )
+    df.index.name = "date"
+    df.to_parquet(path)
+
+
+def test_run_static_model_reuses_cache_when_config_unchanged(tmp_path, monkeypatch):
+    import models.hmm as hmm_mod
+
+    features_path = tmp_path / "features.parquet"
+    model_path = tmp_path / "hmm_model.joblib"
+    regimes_path = tmp_path / "regimes.parquet"
+    _make_synthetic_features_file(features_path)
+
+    monkeypatch.setitem(hmm_mod.CFG["paths"], "features", str(features_path))
+    monkeypatch.setitem(hmm_mod.CFG["paths"], "model", str(model_path))
+    monkeypatch.setitem(hmm_mod.CFG["paths"], "regimes", str(regimes_path))
+    monkeypatch.setitem(hmm_mod.CFG["hmm"], "n_states", 3)
+    monkeypatch.setitem(hmm_mod.CFG["hmm"], "n_init", 2)  # keep the test fast
+
+    fit_calls = {"count": 0}
+    real_fit_hmm = hmm_mod.fit_hmm
+
+    def counting_fit_hmm(features):
+        fit_calls["count"] += 1
+        return real_fit_hmm(features)
+
+    monkeypatch.setattr(hmm_mod, "fit_hmm", counting_fit_hmm)
+
+    hmm_mod.run(retrain=False, walk_forward=False)
+    assert fit_calls["count"] == 1, "First call with no cache should fit once"
+
+    hmm_mod.run(retrain=False, walk_forward=False)
+    assert fit_calls["count"] == 1, "Second call with unchanged config should reuse the cache, not refit"
+
+
+def test_run_static_model_refits_when_n_states_changes(tmp_path, monkeypatch):
+    import models.hmm as hmm_mod
+
+    features_path = tmp_path / "features.parquet"
+    model_path = tmp_path / "hmm_model.joblib"
+    regimes_path = tmp_path / "regimes.parquet"
+    _make_synthetic_features_file(features_path)
+
+    monkeypatch.setitem(hmm_mod.CFG["paths"], "features", str(features_path))
+    monkeypatch.setitem(hmm_mod.CFG["paths"], "model", str(model_path))
+    monkeypatch.setitem(hmm_mod.CFG["paths"], "regimes", str(regimes_path))
+    monkeypatch.setitem(hmm_mod.CFG["hmm"], "n_states", 3)
+    monkeypatch.setitem(hmm_mod.CFG["hmm"], "n_init", 2)
+
+    fit_calls = {"count": 0}
+    real_fit_hmm = hmm_mod.fit_hmm
+
+    def counting_fit_hmm(features):
+        fit_calls["count"] += 1
+        return real_fit_hmm(features)
+
+    monkeypatch.setattr(hmm_mod, "fit_hmm", counting_fit_hmm)
+
+    hmm_mod.run(retrain=False, walk_forward=False)
+    assert fit_calls["count"] == 1
+
+    # Change n_states without passing retrain=True - old code would have
+    # silently reused the stale cache here; fixed code must refit instead.
+    monkeypatch.setitem(hmm_mod.CFG["hmm"], "n_states", 4)
+    hmm_mod.run(retrain=False, walk_forward=False)
+    assert fit_calls["count"] == 2, (
+        "Changing n_states without retrain=True must trigger a refit, "
+        "not silently reuse the model cached under the old n_states"
+    )
+
+
+def test_run_static_model_refits_when_feature_columns_change(tmp_path, monkeypatch):
+    import models.hmm as hmm_mod
+
+    features_path = tmp_path / "features.parquet"
+    model_path = tmp_path / "hmm_model.joblib"
+    regimes_path = tmp_path / "regimes.parquet"
+    _make_synthetic_features_file(features_path, n_features=3)
+
+    monkeypatch.setitem(hmm_mod.CFG["paths"], "features", str(features_path))
+    monkeypatch.setitem(hmm_mod.CFG["paths"], "model", str(model_path))
+    monkeypatch.setitem(hmm_mod.CFG["paths"], "regimes", str(regimes_path))
+    monkeypatch.setitem(hmm_mod.CFG["hmm"], "n_states", 3)
+    monkeypatch.setitem(hmm_mod.CFG["hmm"], "n_init", 2)
+
+    fit_calls = {"count": 0}
+    real_fit_hmm = hmm_mod.fit_hmm
+
+    def counting_fit_hmm(features):
+        fit_calls["count"] += 1
+        return real_fit_hmm(features)
+
+    monkeypatch.setattr(hmm_mod, "fit_hmm", counting_fit_hmm)
+
+    hmm_mod.run(retrain=False, walk_forward=False)
+    assert fit_calls["count"] == 1
+
+    # Same n_states, but a DIFFERENT feature set (e.g. the skew_kurt ablation
+    # variant) - must not silently reuse a model fit on different columns.
+    _make_synthetic_features_file(features_path, n_features=2)
+    hmm_mod.run(retrain=False, walk_forward=False)
+    assert fit_calls["count"] == 2, (
+        "Changing feature columns without retrain=True must trigger a refit"
+    )
