@@ -10,17 +10,26 @@ BLOCK_LENGTH = CFG["bootstrap"]["block_length"]
 N_ITERATIONS = CFG["bootstrap"]["n_iterations"]
 RANDOM_STATE = CFG["bootstrap"]["random_state"]
 
+def block_bootstrap_indices(n: int, block_length: int, rng: np.random.Generator) -> np.ndarray:
+    """Generate one set of block-bootstrap resample indices of length n.
+
+    Reusing the SAME returned array on multiple series (e.g. portfolio and
+    benchmark) preserves their joint/dependency structure - this is what makes
+    a paired block bootstrap valid, as opposed to resampling each series
+    independently. Previously duplicated inline in run_bootstrap() here and in
+    scripts/stress_tests.py::paired_block_bootstrap() - the two implementations
+    later diverged into different (and in one case, buggy) p-value formulas,
+    which is a large part of why this is now factored out into one place."""
+    indices = []
+    while len(indices) < n:
+        start = rng.integers(0, n - block_length + 1)
+        indices.extend(range(int(start), int(start) + block_length))
+    return np.array(indices[:n])
+
 def block_resample(returns : pd.Series, block_length: int, rng: np.random.Generator) -> pd.Series:
     n = len(returns)
-    values = returns.values
-    resampled = []
-
-    while len(resampled) < n:
-        start = rng.integers(0, n - block_length + 1)
-        block = values[start:start + block_length]
-        resampled.extend(block)
-
-    return pd.Series(resampled[:n], index=returns.index)
+    indices = block_bootstrap_indices(n, block_length, rng)
+    return pd.Series(returns.values[indices], index=returns.index)
 
 def run_bootstrap(
     port_returns: pd.Series,
@@ -35,11 +44,7 @@ def run_bootstrap(
 
     for _ in range(n_iterations):
         n = len(port_returns)
-        indices = []
-        while len(indices) < n:
-            start = rng.integers(0, n - block_length + 1)
-            indices.extend(range(start, start + block_length))
-        indices = indices[:n]
+        indices = block_bootstrap_indices(n, block_length, rng)
 
         port_sample  = pd.Series(port_returns.values[indices],  index=port_returns.index[:n])
         bench_sample = pd.Series(benchmark_returns.values[indices], index=benchmark_returns.index[:n])
