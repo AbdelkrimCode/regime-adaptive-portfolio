@@ -72,3 +72,15 @@ def test_fetch_risk_free_refetches_on_date_change(tmp_path, monkeypatch):
     with patch.object(rf_mod.yf, "download", side_effect=fake_download_b):
         rf2 = rf_mod.fetch_risk_free(start="2021-01-01", end="2021-12-31")
         assert rf2.index[0] == dates_b[0], "should have refetched instead of returning 2020 cache"
+
+def test_fetch_start_and_risk_free_start_come_from_config():
+    import inspect
+    import data.fetch as fetch_mod
+    import data.risk_free as rf_mod
+    from config import load_config
+
+    cfg = load_config()
+    assert fetch_mod.START == cfg["evaluation"]["data_start"]
+
+    rf_default_start = inspect.signature(rf_mod.fetch_risk_free).parameters["start"].default
+    assert rf_default_start == cfg["evaluation"]["data_start"]

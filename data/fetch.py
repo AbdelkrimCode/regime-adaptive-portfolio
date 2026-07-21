@@ -4,7 +4,7 @@ import pandas as pd
 from config import load_config
 from data.cache_utils import is_cache_valid, write_cache_signature
 
-START    = load_config()["evaluation"].get("data_start", "2005-01-01")
+START    = load_config()["evaluation"]["data_start"]
 END      = load_config()["evaluation"]["data_end"]
 TICKERS = ["SPY", "TLT", "GLD", "EFA", "IEF", "QQQ", "LQD", "VNQ"]
 RAW_DIR  = os.path.join(os.path.dirname(__file__), "raw")
