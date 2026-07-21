@@ -269,7 +269,7 @@ def test_label_states_no_feature_cols_falls_back_to_positional():
     assert labels[ranking[0]] == "Crash"
     assert labels[ranking[3]] == "Bull"
 
-    
+
 def test_block_bootstrap_indices_reused_gives_paired_consistency():
     # Calling block_bootstrap_indices ONCE and applying the result to two
     # different series (paired resampling) should select the same positions
@@ -299,3 +299,38 @@ def test_block_bootstrap_indices_matches_block_resample():
     expected = returns.values[indices]
 
     assert np.array_equal(resampled.values, expected)
+
+def test_select_n_states_default_returns_dataframe_only():
+    rng = np.random.default_rng(0)
+    features = rng.normal(0, 1, (300, 3))
+    result = select_n_states(features, candidate_states=[2, 3])
+    assert isinstance(result, pd.DataFrame)
+
+
+def test_select_n_states_return_models_gives_matching_models():
+    rng = np.random.default_rng(0)
+    features = rng.normal(0, 1, (300, 3))
+    scores_df, models = select_n_states(features, candidate_states=[2, 3], return_models=True)
+
+    assert isinstance(scores_df, pd.DataFrame)
+    assert set(models.keys()) == set(scores_df.index)
+    for n, model in models.items():
+        assert model.n_components == n
+
+
+def test_select_n_states_returned_model_matches_a_fresh_refit():
+    # The whole point of return_models: the returned model for the winning
+    # n_states should be usable directly, with no need to refit - confirm it's
+    # identical to what a fresh fit_hmm_with_n call would produce.
+    from models.hmm import fit_hmm_with_n
+
+    rng = np.random.default_rng(0)
+    features = rng.normal(0, 1, (300, 3))
+    scores_df, models = select_n_states(features, candidate_states=[2, 3], return_models=True)
+    best_n = scores_df["bic"].idxmin()
+
+    reused_model = models[best_n]
+    fresh_model, _ = fit_hmm_with_n(features, best_n)
+
+    assert np.isclose(reused_model.score(features), fresh_model.score(features))
+    assert np.allclose(reused_model.means_, fresh_model.means_)

@@ -120,14 +120,14 @@ def _fit_fold(
     scaler = StandardScaler()
     train_scaled = scaler.fit_transform(train_features)
 
-    scores_df = select_n_states(train_scaled, candidate_states=[2, 3, 4])
+    scores_df, candidate_models = select_n_states(train_scaled, candidate_states=[2, 3, 4], return_models=True)
     if scores_df.empty:
         return None
     best_n = scores_df["bic"].idxmin()
 
     print(f"  Selected n_states={best_n} for fold {retrain_date.date()}")
 
-    model, _ = fit_hmm_with_n(train_scaled, best_n)
+    model = candidate_models[best_n]
     if model is None:
         return None
 
@@ -168,13 +168,18 @@ def compute_aic_bic(model: GaussianHMM, features_scaled: np.ndarray, n_features:
     bic = -2 * log_likelihood + np.log(n_samples) * n_params
     return aic, bic
 
-def select_n_states(features_scaled: np.ndarray, candidate_states: list[int] | None = None) -> pd.DataFrame:
+def select_n_states(
+    features_scaled: np.ndarray,
+    candidate_states: list[int] | None = None,
+    return_models: bool = False,
+) -> pd.DataFrame | tuple[pd.DataFrame, dict[int, GaussianHMM]]:
     if candidate_states is None:
         candidate_states = [2, 3, 4, 5]
 
     n_features = features_scaled.shape[1]
 
     records = []
+    models = {}
     for n in candidate_states:
         print(f"  Fitting HMM with {n} states...")
         model, _ = fit_hmm_with_n(features_scaled, n)
@@ -182,8 +187,13 @@ def select_n_states(features_scaled: np.ndarray, candidate_states: list[int] | N
             continue
         aic, bic = compute_aic_bic(model, features_scaled, n_features)
         records.append({"n_states": n, "aic": round(aic, 2), "bic": round(bic, 2)})
+        models[n] = model
 
-    return pd.DataFrame(records).set_index("n_states")
+    scores_df = pd.DataFrame(records).set_index("n_states")
+
+    if return_models:
+        return scores_df, models
+    return scores_df
 
 def plot_state_selection(scores_df: pd.DataFrame, output_path: str | None = None) -> None:
     import matplotlib.pyplot as plt
