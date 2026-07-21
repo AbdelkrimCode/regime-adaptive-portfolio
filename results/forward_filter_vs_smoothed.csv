@@ -1,0 +1,3 @@
+method,annualized_return,annualized_volatility,sharpe_ratio,max_drawdown,calmar_ratio
+forward_filter,0.0627,0.0809,0.6152,-0.2703,0.2321
+smoothed,0.0643,0.0807,0.6357,-0.2421,0.2658
