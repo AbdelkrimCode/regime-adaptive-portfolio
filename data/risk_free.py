@@ -10,7 +10,7 @@ RF_PATH = os.path.join(os.path.dirname(__file__), "processed", "risk_free.parque
 
 
 def fetch_risk_free(
-    start: str = "2005-01-01",
+    start: str = _CFG["evaluation"]["data_start"],
     end: str = _CFG["evaluation"]["data_end"],
     force_refresh: bool = False
 ) -> pd.Series:
