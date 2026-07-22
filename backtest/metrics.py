@@ -4,7 +4,7 @@ from config import load_config
 
 CFG = load_config()
 TRADING_DAYS = CFG["market"]["trading_days"]
-RISK_FREE_RATE = CFG["market"]["risk_free_rate"]
+
 
 def annualized_return(equity: pd.Series) -> float:
     n_periods = len(equity) - 1
