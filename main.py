@@ -91,7 +91,7 @@ def print_regime_diagnostics(regimes_df: pd.DataFrame) -> None:
             continue
         print(f"  {regime:<12} {len(subset):>8} {subset.mean():>8.1f} {subset.median():>8.1f} {subset.min():>8} {subset.max():>8}")
 
-    print("\nEmpirical transition matrix (row → col, % of exits):")
+    print("\nEmpirical transition matrix (row -> col, % of exits):")
     labels = ["Bull", "Bear", "Sideways", "Crash"]
     trans_pct = compute_empirical_transition_matrix(runs_df, labels)
 
@@ -104,7 +104,7 @@ def print_regime_diagnostics(regimes_df: pd.DataFrame) -> None:
         print(f"  {row:<12}", end="")
         for col in labels:
             val = trans_pct.loc[row, col]
-            print(f" {val:>9.1f}%" if not pd.isna(val) else f" {'—':>9}", end="")
+            print(f" {val:>9.1f}%" if not pd.isna(val) else f" {'N/A':>9}", end="")
         print()
 
 def print_jarque_bera(regimes_df: pd.DataFrame) -> None:
@@ -144,7 +144,7 @@ def main(retrain: bool = False, charts: bool = True, walk_forward: bool = True) 
     print(f"\n  Average daily turnover: {turnover:.4f} ({turnover * 100:.2f}% of portfolio per day)")
     print(f"  Implied annual transaction cost: {turnover * CFG['backtest']['transaction_cost'] * 252 * 100:.4f}%")
 
-    print("\n--- Held-out test period (2019–2024) ---")
+    print("\n--- Held-out test period (2019-2024) ---")
     test_start = CFG["evaluation"]["test_start"]
     data_end = CFG["evaluation"]["data_end"]
     test_result, _ = run_period(
