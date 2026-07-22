@@ -72,9 +72,7 @@ from data.process import compute_features, compute_returns
 from data.fetch import fetch_prices
 from config import load_config
 
-# test_ablation_run_single_keys removed: fully superseded by
-# test_ablation_run_single_does_not_touch_production_paths below, which
-# already calls run_single with synthetic data and checks these same keys.
+# test_ablation_run_single_keys was removed after being superseded.
 
 from models.hmm import _fit_hmm_core, forward_filter
 from sklearn.preprocessing import StandardScaler
@@ -118,10 +116,7 @@ def test_ablation_run_single_does_not_touch_production_paths(monkeypatch):
     )
     rf = pd.Series(0.0001, index=dates)
 
-    # Point every path run_single could plausibly write to at nonexistent
-    # files. If the old bug (writing features/returns/regimes to disk) were
-    # still present, this would either raise (parent dir missing) or the
-    # existence assertions below would catch it.
+    # Point all writable paths at nonexistent files so accidental writes fail.
     bogus_paths = {
         "features": "/tmp/should_not_be_written_features.parquet",
         "returns": "/tmp/should_not_be_written_returns.parquet",

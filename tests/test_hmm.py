@@ -13,22 +13,12 @@ from backtest.bootstrap import block_resample, block_bootstrap_indices
 
 
 def test_count_params_known():
-    # n_states=2, n_features=3
-    # transition = 2*(2-1) = 2
-    # means = 2*3 = 6
-    # covariances = 2 * 3*4//2 = 12
-    # startprob = 2-1 = 1
-    # total = 21
+    # 2 states, 3 features.
     assert count_params(2, 3) == 21
 
 
 def test_count_params_four_states():
-    # n_states=4, n_features=3
-    # transition = 4*3 = 12
-    # means = 4*3 = 12
-    # covariances = 4 * 3*4//2 = 24
-    # startprob = 3
-    # total = 51
+    # 4 states, 3 features.
     assert count_params(4, 3) == 51
 
 
@@ -180,7 +170,7 @@ def test_fit_hmm_core_flags_non_convergence_with_low_n_iter(monkeypatch, capsys)
     monkeypatch.setitem(hmm_mod.CFG["hmm"], "n_iter", 1)
     monkeypatch.setitem(hmm_mod.CFG["hmm"], "n_init", 2)
 
-    # Well-separated clusters so a real fit needs more than 1 EM step to settle.
+
     rng = np.random.default_rng(0)
     features = rng.normal(0, 1, (900, 3))
     features[:300, 0] += 3
@@ -211,10 +201,7 @@ def test_fit_hmm_core_converged_true_with_ample_n_iter(monkeypatch):
 
 
 def test_label_states_uses_feature_cols_when_columns_reordered():
-    # means_ columns are in order [mean_corr, spy_vol, spy_return] here -
-    # the opposite of the assumed default [spy_return, spy_vol, mean_corr].
-    # Positional fallback (index 0/1) would rank by mean_corr - 0.5*spy_vol,
-    # giving the wrong answer. Name-based lookup should get it right regardless.
+
     model = MagicMock()
     model.means_ = np.array([
         [0.6, 0.03, -0.002],
@@ -235,9 +222,7 @@ def test_label_states_uses_feature_cols_when_columns_reordered():
 
 
 def test_label_states_skew_kurt_variant_ranks_by_return_only():
-    # skew_kurt ablation variant has columns [spy_return, spy_skew, spy_kurt] -
-    # no spy_vol at all. Should rank purely by return, NOT silently treat
-    # spy_skew as if it were volatility (that was the bug).
+
     model = MagicMock()
     model.means_ = np.array([
         [-0.002, 0.5, 3.0],
@@ -255,8 +240,7 @@ def test_label_states_skew_kurt_variant_ranks_by_return_only():
 
 
 def test_label_states_no_feature_cols_falls_back_to_positional():
-    # Backward compatibility: existing callers that don't pass feature_cols
-    # keep the original [index 0, index 1] behavior.
+
     model = MagicMock()
     model.means_ = np.array([
         [-0.002, 0.03],
@@ -271,9 +255,7 @@ def test_label_states_no_feature_cols_falls_back_to_positional():
 
 
 def test_block_bootstrap_indices_reused_gives_paired_consistency():
-    # Calling block_bootstrap_indices ONCE and applying the result to two
-    # different series (paired resampling) should select the same positions
-    # from both - this is what makes a paired block bootstrap valid.
+
     rng = np.random.default_rng(7)
     indices = block_bootstrap_indices(n=100, block_length=10, rng=rng)
 
@@ -287,8 +269,7 @@ def test_block_bootstrap_indices_reused_gives_paired_consistency():
 
 
 def test_block_bootstrap_indices_matches_block_resample():
-    # block_resample() should produce values consistent with directly
-    # indexing via block_bootstrap_indices with the same seed.
+
     returns = pd.Series(np.arange(200, dtype=float))
 
     rng1 = np.random.default_rng(99)
@@ -319,9 +300,7 @@ def test_select_n_states_return_models_gives_matching_models():
 
 
 def test_select_n_states_returned_model_matches_a_fresh_refit():
-    # The whole point of return_models: the returned model for the winning
-    # n_states should be usable directly, with no need to refit - confirm it's
-    # identical to what a fresh fit_hmm_with_n call would produce.
+
     from models.hmm import fit_hmm_with_n
 
     rng = np.random.default_rng(0)

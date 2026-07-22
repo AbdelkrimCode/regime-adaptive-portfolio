@@ -147,3 +147,51 @@ def test_compute_weights_equal_weight_when_history_too_short():
     short_returns = returns.iloc[:50]
     w = compute_weights(make_regimes(short_returns, "Bull"), short_returns).dropna()
     assert np.allclose(w.values, 1.0 / N_ASSETS, atol=1e-6)
+    
+def make_correlated_returns(n: int = 750, seed: int = 11) -> pd.DataFrame:
+
+    rng = np.random.default_rng(seed)
+    annual_vols = np.array([0.16, 0.12, 0.15, 0.17, 0.06, 0.20, 0.08, 0.19])
+    corr = np.full((N_ASSETS, N_ASSETS), 0.35)
+    np.fill_diagonal(corr, 1.0)
+    daily_vols = annual_vols / np.sqrt(252)
+    cov_daily = np.outer(daily_vols, daily_vols) * corr
+    dates = pd.date_range("2015-01-01", periods=n, freq="B")
+    data = rng.multivariate_normal(mean=np.zeros(N_ASSETS), cov=cov_daily, size=n)
+    return pd.DataFrame(data, index=dates, columns=ASSETS)
+
+
+def test_risk_parity_achieves_equal_risk_contribution_with_correlated_assets():
+
+    from optimization.risk_parity import estimate_covariance
+    returns = make_correlated_returns()
+    sigma = estimate_covariance(returns)
+
+    w = risk_parity(returns)
+    assert w.max() < MAX_POSITION + 1e-6
+
+    risk_contrib = w * (sigma @ w)
+    risk_contrib_pct = risk_contrib / risk_contrib.sum()
+    spread = risk_contrib_pct.max() - risk_contrib_pct.min()
+    assert spread < 0.02, (
+        f"Risk contributions should be approximately equal even when the "
+        f"natural solution scale exceeds 1.0 per asset, got spread of "
+        f"{spread:.4f} across assets: {risk_contrib_pct}"
+    )
+
+
+def test_cap_and_redistribute_enforces_cap():
+    from optimization.risk_parity import _cap_and_redistribute
+    w = np.array([0.75, 0.10, 0.08, 0.07])
+    capped = _cap_and_redistribute(w, cap=0.6)
+    assert capped.max() <= 0.6 + 1e-9
+    assert capped.sum() == pytest.approx(1.0, abs=1e-9)
+    # excess from the capped asset should be redistributed proportionally
+    assert capped[1] > w[1] and capped[2] > w[2] and capped[3] > w[3]
+
+
+def test_cap_and_redistribute_noop_when_already_compliant():
+    from optimization.risk_parity import _cap_and_redistribute
+    w = np.array([0.3, 0.3, 0.2, 0.2])
+    capped = _cap_and_redistribute(w, cap=0.6)
+    assert np.allclose(capped, w)

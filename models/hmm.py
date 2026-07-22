@@ -45,10 +45,6 @@ def _fit_hmm_core(features_scaled: np.ndarray, n_states: int) -> GaussianHMM | N
     chosen = best_model if best_model is not None else last_model
 
     if chosen is not None:
-        # hmmlearn's own `monitor_.converged` is True whenever `iter == n_iter`
-        # OR the tolerance was met - i.e. it also counts "ran out of iterations"
-        # as converged. We only want the genuine signal: did the log-likelihood
-        # improvement actually drop below tol before the budget ran out?
         history = chosen.monitor_.history
         tol = chosen.monitor_.tol
         chosen.converged_ = bool(
@@ -225,8 +221,7 @@ def label_states(model: GaussianHMM, feature_cols: list[str] | None = None) -> d
         return_idx = feature_cols.index("spy_return")
         vol_idx = feature_cols.index("spy_vol") if "spy_vol" in feature_cols else None
     else:
-        # Backward-compatible fallback for callers that don't pass feature_cols:
-        # assumes the original [spy_return, spy_vol, ...] column order.
+        # Fallback for callers that do not pass feature_cols.
         return_idx = 0
         vol_idx = 1 if model.means_.shape[1] > 1 else None
 
@@ -256,13 +251,11 @@ def label_states(model: GaussianHMM, feature_cols: list[str] | None = None) -> d
     return {ranking[i]: f"State{i}" for i in range(n)}
 
 def get_fitted_transition_matrix(model: GaussianHMM, state_labels: dict) -> pd.DataFrame:
-    """Reads a single fitted model's own theoretical transmat_ parameter directly.
+    """Return the fitted model's transition matrix in regime-label order.
 
-    This is distinct from main.compute_empirical_transition_matrix(), which counts
-    actual observed regime-label transitions across a walk-forward run (possibly
-    spanning many retrained models). The two are not interchangeable and will not
-    generally agree - this one reflects what one specific model learned, the other
-    reflects what actually happened across the full walk-forward output."""
+    This is distinct from main.compute_empirical_transition_matrix(), which
+    counts observed transitions across a walk-forward run.
+    """
     n = model.n_components
     labels = [state_labels[i] for i in range(n)]
     transmat = pd.DataFrame(

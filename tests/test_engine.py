@@ -163,8 +163,7 @@ def test_run_accepts_returns_df_directly_without_reading_disk(tmp_path, monkeypa
         "is_retrain_date": [False] * 60,
     }, index=idx)
 
-    # Point CFG at a path that does not exist - if run() tried to fall back
-    # to reading from disk instead of using returns_df, this would raise.
+
     nonexistent_path = str(tmp_path / "does_not_exist.parquet")
     monkeypatch.setitem(engine_mod.CFG["paths"], "returns", nonexistent_path)
 

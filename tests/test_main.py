@@ -25,8 +25,7 @@ def test_compute_regime_runs_single_regime():
 
 
 def test_compute_empirical_transition_matrix_known_case():
-    # Bull -> Bear -> Bull -> Crash: two exits from Bull (both to different
-    # targets is impossible here, both go... let's make it unambiguous.
+    # Bull -> Bear -> Bull -> Crash: two Bull exits, one to Bear and one to Crash.
     runs_df = pd.DataFrame({
         "regime": ["Bull", "Bear", "Bull", "Crash"],
         "duration": [5, 3, 2, 4],

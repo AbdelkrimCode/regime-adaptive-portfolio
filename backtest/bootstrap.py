@@ -11,15 +11,10 @@ N_ITERATIONS = CFG["bootstrap"]["n_iterations"]
 RANDOM_STATE = CFG["bootstrap"]["random_state"]
 
 def block_bootstrap_indices(n: int, block_length: int, rng: np.random.Generator) -> np.ndarray:
-    """Generate one set of block-bootstrap resample indices of length n.
+    """Generate block-bootstrap resample indices of length n.
 
-    Reusing the SAME returned array on multiple series (e.g. portfolio and
-    benchmark) preserves their joint/dependency structure - this is what makes
-    a paired block bootstrap valid, as opposed to resampling each series
-    independently. Previously duplicated inline in run_bootstrap() here and in
-    scripts/stress_tests.py::paired_block_bootstrap() - the two implementations
-    later diverged into different (and in one case, buggy) p-value formulas,
-    which is a large part of why this is now factored out into one place."""
+    Reuse the same indices across related series to preserve dependence.
+    """
     indices = []
     while len(indices) < n:
         start = rng.integers(0, n - block_length + 1)
