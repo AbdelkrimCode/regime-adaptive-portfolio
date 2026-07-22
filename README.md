@@ -1,4 +1,4 @@
-# Regime Adaptive Portfolio - v7
+# Regime Adaptive Portfolio - v6
 
 Algorithmic portfolio optimizer combining Hidden Markov Model regime detection with convex optimization.
 
