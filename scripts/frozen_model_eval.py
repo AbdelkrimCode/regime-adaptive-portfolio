@@ -47,8 +47,8 @@ def build_regimes(model, scaler, df: pd.DataFrame, features_cols: list[str]) -> 
 def run_frozen_eval() -> None:
     print("=" * 50)
     print("  Frozen Model Evaluation")
-    print(f"  Train: 2006 → {FREEZE_DATE}")
-    print(f"  Test:  {TEST_START} → {TEST_END}")
+    print(f"  Train: 2006 -> {FREEZE_DATE}")
+    print(f"  Test:  {TEST_START} -> {TEST_END}")
     print("=" * 50)
 
     model, scaler, df, features_cols = train_frozen_model()

@@ -69,8 +69,8 @@ def process_and_save(prices: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     returns.to_parquet(RETURNS_PATH)
     features.to_parquet(FEATURES_PATH)
 
-    print(f"Returns  : {returns.shape}  → {RETURNS_PATH}")
-    print(f"Features : {features.shape} → {FEATURES_PATH}")
+    print(f"Returns  : {returns.shape}  -> {RETURNS_PATH}")
+    print(f"Features : {features.shape} -> {FEATURES_PATH}")
     return returns, features
 
 
