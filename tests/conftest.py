@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 MOCK_RF_VALUE = 0.0001
 
-# Wide range intentionally covers any synthetic test data regardless of date thus no usage of CFG
+# Wide date range covers synthetic test data without depending on CFG.
 MOCK_RF_INDEX = pd.bdate_range("1990-01-01", "2050-01-01")
 
 @pytest.fixture(autouse=True)

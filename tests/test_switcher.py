@@ -34,7 +34,7 @@ def test_concentration_guard_triggers_on_crash_regime_extreme_weights():
     regimes_df = make_single_day_regime(date, "Crash")
 
     extreme = np.zeros(len(ASSETS))
-    extreme[ASSETS.index("IEF")] = 1.0  # 100% concentrated in one safe haven
+    extreme[ASSETS.index("IEF")] = 1.0
 
     with patch.dict(switcher_mod.OPTIMIZER_MAP, {"Crash": lambda r: extreme}):
         weights = switcher_mod.compute_weights(regimes_df, returns)
@@ -43,11 +43,7 @@ def test_concentration_guard_triggers_on_crash_regime_extreme_weights():
     assert np.max(w) < switcher_mod.CONCENTRATION_GUARD, (
         "Guard should have replaced the 100%-concentrated Crash allocation"
     )
-    # Fallback is now scoped to the Crash regime's own safe-haven subset
-    # (IEF/TLT/GLD), equal-weighted - NOT the full 8-asset universe. Falling
-    # back to the full universe would inject equity/risk exposure at exactly
-    # the moment Crash exists to avoid it (see audit §2.6 - this was a
-    # deliberate fix, not the original documented behavior).
+
     safe_havens = switcher_mod.SAFE_HAVEN_ASSETS
     expected = np.zeros(len(ASSETS))
     weight_each = 1.0 / len(safe_havens)
@@ -83,7 +79,7 @@ def test_concentration_guard_triggers_on_bull_regime_extreme_weights(monkeypatch
     extreme = np.zeros(len(ASSETS))
     extreme[ASSETS.index("QQQ")] = 1.0
 
-    # Bull bypasses OPTIMIZER_MAP and calls max_sharpe directly (see switcher.py).
+    # Bull uses max_sharpe directly.
     monkeypatch.setattr(switcher_mod, "max_sharpe", lambda r, rf: extreme)
 
     weights = switcher_mod.compute_weights(regimes_df, returns)
@@ -106,7 +102,7 @@ def test_concentration_guard_does_not_trigger_on_diversified_weights():
 
 
 def test_concentration_guard_fallback_helper_directly():
-    assets = switcher_mod.OPTIMIZER_MAP.keys()  # just to touch the module
+    assets = switcher_mod.OPTIMIZER_MAP.keys()
     all_assets = ["SPY", "TLT", "GLD", "EFA", "IEF", "QQQ", "LQD", "VNQ"]
 
     crash_fallback = switcher_mod._concentration_guard_fallback("Crash", all_assets)
@@ -116,6 +112,6 @@ def test_concentration_guard_fallback_helper_directly():
         if a not in switcher_mod.SAFE_HAVEN_ASSETS:
             assert crash_fallback[all_assets.index(a)] == 0.0
 
-    # Non-Crash regimes still fall back to full-universe equal-weight
+    # Non-Crash regimes fall back to full-universe equal-weight.
     bull_fallback = switcher_mod._concentration_guard_fallback("Bull", all_assets)
     assert np.allclose(bull_fallback, 1.0 / len(all_assets))

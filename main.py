@@ -62,12 +62,11 @@ def compute_regime_runs(regimes_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def compute_empirical_transition_matrix(runs_df: pd.DataFrame, labels: list[str]) -> pd.DataFrame:
-    """Empirical, run-based transition matrix: counts actual observed regime-label
-    transitions in a walk-forward output (% of exits from each regime).
+    """Build an empirical transition matrix from observed regime runs.
 
-    This is distinct from models.hmm.get_fitted_transition_matrix(), which reads
-    a single HMM model's own theoretical transmat_ parameter directly - the two
-    are not interchangeable and will not generally agree."""
+    This differs from models.hmm.get_fitted_transition_matrix(), which reads a
+    fitted model's theoretical transition matrix.
+    """
     trans = pd.DataFrame(0, index=labels, columns=labels)
     for i in range(len(runs_df) - 1):
         from_r = runs_df.iloc[i]["regime"]
