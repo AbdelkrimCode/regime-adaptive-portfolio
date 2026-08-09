@@ -233,28 +233,6 @@ Tail risk is dramatically lower than SPY across all measures. Sharpe during VIX 
 
 ---
 
-## Audit Fixes
-
-An external multi-agent audit (technical/code-quality, documentation-consistency, and math/methodology passes) was run against this repository. Every finding was addressed - full detail, including two fixes that required a second pass after an initial fix turned out to be incomplete, is in **`audit_fixes_report.md`** in the repository root. Summary of the most consequential items:
-
-**Risk Parity (the headline fix, two passes).** The Bear-regime optimizer's log-barrier objective had a redundant `sum(w)==1` equality constraint sitting inside the same optimization problem as its position-limit cap - both individually plausible-looking, but together this broke the equal-risk-contribution property the method is meant to guarantee. A first fix removed the redundant equality constraint and validated the result on synthetic i.i.d. data (18pp -> 0.002pp risk-contribution spread) - correct as far as it went, but the synthetic test data never actually engaged the position-limit cap, since i.i.d. returns keep the optimizer's natural solution scale well under the cap. Against real historical data for the actual 8-asset universe, the cap - still applied to the *raw, pre-normalization* variable - caused most or all assets to saturate simultaneously, silently reproducing equal weight (14-23pp spread across three real historical windows, confirmed). The complete fix moves the position cap to apply *after* normalization, with a cap-and-redistribute procedure for any asset still over the limit post-normalization (spread now 0.0005-0.0014pp on the same real windows). This is now the codebase's Risk Parity implementation, and it has a real, honestly-reported effect on results: the standalone Risk Parity benchmark improved on every metric, while the main strategy's Bear-regime allocation - no longer accidentally equal-weighted - shows reduced resilience specifically to 2022's correlated bond/equity selloff. See `audit_fixes_report.md` for the full verification trail.
-
-**`stress_tests.py`'s bootstrap p-value** compared the bootstrap distribution to its own observed point estimate instead of to zero, returning approximately 0.5 regardless of true effect size - fixed to match the already-correct convention in `backtest/bootstrap.py`; the two now agree to three decimal places on every run.
-
-**`label_states()`** resolved its two scoring inputs by column position rather than name, silently mislabeling the `skew_kurt` ablation variant (which has no volatility column) by scoring on skewness instead - now resolves by name.
-
-**Silent stale-cache pattern** across `data/fetch.py`, `data/risk_free.py`, and the static (non-walk-forward) HMM model path - cached data was returned whenever the file existed, regardless of whether the actual request (tickers, dates, `n_states`, features) matched. Confirmed this could crash outright, not just silently mislead. Cache now validated against a signature of the request.
-
-**A race condition** in `sensitivity_sweep.py` (9 parallel workers writing the same results file) and **shared-state mutation** in `feature_ablation.py` (each variant overwriting production `features.parquet`/`returns.parquet`) - both eliminated, not just mitigated, by passing data in-memory instead of round-tripping through shared disk paths.
-
-**HMM convergence** was never checked - a "best of 10 restarts" could still not have genuinely converged, with no signal anywhere. Now checked against the correct tolerance-based condition (hmmlearn's own flag conflates "converged" with "ran out of iterations").
-
-**The `CONCENTRATION_GUARD` fallback** replaced any regime's degenerate optimizer output with full-universe equal-weight, including Crash - now scoped to Crash's own safe havens specifically, since diluting a flight-to-safety allocation with equity exposure at exactly the wrong moment defeated the point of the regime.
-
-**First-day transaction cost** was silently zero across three files due to a pandas `skipna` quirk on an all-NaN first row - fixed once, centrally, instead of three times independently.
-
-Test coverage was closed for every gap identified, including the three tests previously skipped as "full pipeline - execute manually" (now fast synthetic-data versions that actually run in CI). **Test suite: 114 tests, 0 skipped.**
-
 ## Post-v6 Bug Fixes
 
 | Fix | Issue | Resolution |
