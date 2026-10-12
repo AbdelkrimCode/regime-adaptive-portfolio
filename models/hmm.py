@@ -126,10 +126,13 @@ def _fit_fold(
     if model is None:
         return None
 
-    test_features = test_df[features_cols].values
     state_labels = label_states(model, feature_cols=features_cols)
-    features_scaled = scaler.transform(test_features)
-    hidden_states, posteriors = forward_filter(model, features_scaled)
+
+    test_scaled = scaler.transform(test_df[features_cols].values)
+    full_scaled = np.vstack([train_scaled, test_scaled])
+    hidden_full, posteriors_full = forward_filter(model, full_scaled)
+    hidden_states = hidden_full[-len(test_df):]
+    posteriors = posteriors_full[-len(test_df):]
 
     period_df = test_df.copy()
     period_df["state"] = hidden_states

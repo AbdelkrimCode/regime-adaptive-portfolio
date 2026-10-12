@@ -456,3 +456,40 @@ def test_forward_filter_survives_extreme_observation():
     np.testing.assert_allclose(alpha.sum(axis=1), 1.0)
     # old code returned uniform (max = 1/3) here
     assert alpha[-1].max() > 0.99
+
+import models.hmm as hmm_mod
+
+
+def _two_regime_frame(n_train=300, n_test=40, seed=0):
+    rng = np.random.default_rng(seed)
+    n = n_train + n_test
+    ret = np.where(np.arange(n) % 200 < 100, 1.0, -1.0) + rng.normal(0, 0.5, n)
+    vol = np.where(np.arange(n) % 200 < 100, -1.0, 1.0) + rng.normal(0, 0.5, n)
+    idx = pd.bdate_range("2010-01-01", periods=n)
+    df = pd.DataFrame({"spy_return": ret, "spy_vol": vol}, index=idx)
+    return df.iloc[:n_train], df.iloc[n_train:]
+
+
+def test_fit_fold_carries_filter_state_from_training(monkeypatch):
+    train_df, test_df = _two_regime_frame()
+    cols = ["spy_return", "spy_vol"]
+
+    scaler = StandardScaler().fit(train_df[cols].values)
+    train_scaled = scaler.transform(train_df[cols].values)
+    model = hmm_mod._fit_hmm_core(train_scaled, n_states=2)
+
+    scores = pd.DataFrame({"aic": [0.0], "bic": [0.0]}, index=pd.Index([2], name="n_states"))
+    monkeypatch.setattr(hmm_mod, "select_n_states", lambda *a, **k: (scores, {2: model}))
+
+    period_df, _ = hmm_mod._fit_fold(train_df, test_df, train_df.index[-1], test_df.index[-1], cols)
+
+    test_scaled = scaler.transform(test_df[cols].values)
+    _, carried = hmm_mod.forward_filter(model, np.vstack([train_scaled, test_scaled]))
+    _, restarted = hmm_mod.forward_filter(model, test_scaled)
+
+    labels = hmm_mod.label_states(model, feature_cols=cols)
+    p_cols = [f"p_{labels[i].lower()}" for i in range(2)]
+    got = period_df[p_cols].values
+
+    np.testing.assert_allclose(got, carried[-len(test_df):], atol=1e-10)
+    assert not np.allclose(got[0], restarted[0], atol=1e-3)
