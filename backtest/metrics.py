@@ -54,7 +54,7 @@ def compute_all(returns: pd.Series, equity: pd.Series, rf: pd.Series | None = No
     }
 
 if __name__ == "__main__":
-    result = pd.read_parquet("data/backtest_results.parquet")
+    result = pd.read_parquet(CFG["paths"]["backtest_results"])
     metrics = compute_all(result["portfolio_return"], result["equity"])
     for k, v in metrics.items():
         print(f"{k}: {v}")
