@@ -145,3 +145,22 @@ def test_compare_to_benchmarks_scores_each_benchmark_on_portfolio_dates():
     assert table.loc["risk_parity", "lw_p"] < 0.05
     assert table.loc["risk_parity", "boot_p"] < 0.05
     assert table.loc["sixty_forty", "sharpe_diff"] == 0.0
+
+
+def test_high_vix_download_includes_last_backtest_date(monkeypatch):
+    import yfinance
+    from scripts.stress_tests import sharpe_during_high_vix
+
+    idx = pd.bdate_range("2024-01-01", periods=60)
+    returns = pd.Series(np.random.default_rng(5).normal(0, 0.01, len(idx)), index=idx)
+    seen = {}
+
+    def fake_download(ticker, start, end, **kwargs):
+        seen["end"] = pd.Timestamp(end)
+        return pd.DataFrame({"Close": [40.0] * len(idx)}, index=idx)
+
+    monkeypatch.setattr(yfinance, "download", fake_download)
+    sharpe_during_high_vix(returns, pd.Series(0.0, index=idx))
+
+    # yfinance's end is exclusive, so it must be strictly after the last date.
+    assert seen["end"] > idx[-1]

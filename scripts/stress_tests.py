@@ -26,7 +26,8 @@ def sharpe_during_high_vix(returns: pd.Series, rf: pd.Series, vix_threshold: flo
     """Annualized Sharpe on days with VIX above the threshold, or None."""
     try:
         import yfinance as yf
-        vix = yf.download("^VIX", start=returns.index.min(), end=returns.index.max(), progress=False, auto_adjust=True)["Close"].squeeze()
+        # yfinance's end is exclusive, so add a day to include the last backtest date.
+        vix = yf.download("^VIX", start=returns.index.min(), end=returns.index.max() + pd.Timedelta(days=1), progress=False, auto_adjust=True)["Close"].squeeze()
         vix = vix.reindex(returns.index).ffill()
         mask = vix > vix_threshold
         if mask.sum() < 20:
@@ -39,8 +40,10 @@ def sharpe_during_high_vix(returns: pd.Series, rf: pd.Series, vix_threshold: flo
         return None
 
 def monte_carlo_sharpe(returns: pd.Series, rf: pd.Series, n_sim: int = N_SIMULATIONS) -> dict:
-    # rf is subtracted before resampling so each day keeps its own rf.
-    """Distribution of the Sharpe ratio under a block bootstrap of excess returns."""
+    """Distribution of the Sharpe ratio under a block bootstrap of excess returns.
+
+    rf is subtracted before resampling so each day keeps its own rf.
+    """
     rng = np.random.default_rng(RANDOM_STATE)
     rf_aligned = rf.reindex(returns.index).ffill().fillna(0)
     excess_returns = returns - rf_aligned
