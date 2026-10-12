@@ -1,7 +1,6 @@
 import os
 import numpy as np
 import pandas as pd
-import pytest
 
 from backtest.bootstrap import run_bootstrap
 
@@ -26,7 +25,6 @@ def test_bootstrap_sharpe_differs_with_rf():
     ), "Sharpe should differ when rf is applied"
 
 
-from scripts.sensitivity_sweep import run_single as sweep_run_single
 
 def _run_synthetic_sweep(monkeypatch, vol_window: int = 21, corr_window: int = 63) -> dict:
     import scripts.sensitivity_sweep as sweep_mod
@@ -67,10 +65,6 @@ def test_sensitivity_sweep_run_single_valid_values(monkeypatch):
 
 
 
-from scripts.feature_ablation import run_single as ablation_run_single, FEATURE_SETS
-from data.process import compute_features, compute_returns
-from data.fetch import fetch_prices
-from config import load_config
 
 # test_ablation_run_single_keys was removed after being superseded.
 

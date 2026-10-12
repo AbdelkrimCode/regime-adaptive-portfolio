@@ -6,7 +6,6 @@ import pandas as pd
 from models.hmm import load_features, fit_hmm, forward_filter, label_states
 from backtest.engine import simulate
 from backtest.metrics import compute_all
-from backtest.benchmark import run as run_benchmark
 from optimization.switcher import compute_weights
 from data.risk_free import fetch_risk_free
 from config import load_config

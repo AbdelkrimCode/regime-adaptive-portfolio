@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 from optimization.switcher import compute_weights
-from backtest.metrics import compute_turnover
 from data.risk_free import fetch_risk_free
 from config import load_config
 

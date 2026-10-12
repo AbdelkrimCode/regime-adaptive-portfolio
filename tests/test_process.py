@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import pytest
 
 from config import load_config
 from data.process import compute_returns, compute_features, compute_skew_kurt_features

@@ -6,7 +6,6 @@ from backtest.metrics import (
     annualized_volatility,
     sharpe_ratio,
     max_drawdown,
-    calmar_ratio,
     average_turnover,
     compute_turnover,
     compute_all,

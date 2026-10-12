@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import pytest
 from data.process import compute_returns, compute_features
 from models.hmm import walk_forward_regimes
 from backtest.engine import simulate

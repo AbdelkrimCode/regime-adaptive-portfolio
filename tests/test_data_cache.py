@@ -1,9 +1,7 @@
-import json
 import os
 from unittest.mock import patch
 
 import pandas as pd
-import pytest
 
 from data.cache_utils import is_cache_valid, write_cache_signature, meta_path_for
 

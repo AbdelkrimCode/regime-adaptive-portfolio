@@ -1,5 +1,4 @@
 import pandas as pd
-import config
 from data.fetch import fetch_prices
 from data.process import compute_returns, compute_log_returns, compute_features, compute_skew_kurt_features
 from models.hmm import walk_forward_regimes

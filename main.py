@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from models.hmm import run as run_hmm
 from backtest.engine import run as run_backtest, run_period
-from backtest.metrics import compute_all, average_turnover
+from backtest.metrics import compute_all
 from backtest.benchmark import run as run_benchmark, cost_sensitivity, benchmark_returns
 from backtest.bootstrap import compare_to_benchmarks, SIGNIFICANCE_BENCHMARKS
 from visualization.charts import run as run_charts
