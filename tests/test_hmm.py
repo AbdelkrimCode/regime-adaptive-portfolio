@@ -542,3 +542,40 @@ def test_em_converged_rejects_hitting_iteration_limit():
 
 def test_em_converged_accepts_small_change_before_limit():
     assert hmm_mod._em_converged(_monitor([-100.0, -99.995], it=10)) is True
+
+def _daily_features(n: int = 900) -> pd.DataFrame:
+    dates = pd.bdate_range("2015-01-01", periods=n)
+    return pd.DataFrame(np.random.default_rng(0).normal(size=(n, 3)), index=dates,
+                        columns=["spy_return", "spy_vol", "mean_corr"])
+
+
+def test_build_folds_tile_test_period_without_overlap():
+    from models.hmm import _build_folds
+    from config import load_config
+
+    df = _daily_features()
+    folds = _build_folds(df)
+
+    assert len(folds[0][1]) >= load_config()["hmm"]["min_train_days"]
+    for _, train, test, retrain_date, _ in folds:
+        assert train.index[-1] == retrain_date
+        assert test.index[0] > retrain_date
+    test_dates = pd.DatetimeIndex(np.concatenate([f[2].index.values for f in folds]))
+    assert test_dates.is_unique and test_dates.is_monotonic_increasing
+    assert test_dates[-1] == df.index[-1]
+    first = df.index.get_loc(folds[0][2].index[0])
+    assert len(test_dates) == len(df) - first, "no gaps between consecutive test windows"
+
+
+def test_audit_walk_forward_uses_the_same_folds(monkeypatch, tmp_path):
+    import models.hmm as hmm_mod
+
+    df = _daily_features()
+    monkeypatch.setattr(hmm_mod, "load_features", lambda: df)
+
+    audit = hmm_mod.audit_walk_forward(output_path=str(tmp_path / "audit.csv"))
+    folds = hmm_mod._build_folds(df)
+
+    assert list(audit["fold"]) == [f[0] for f in folds]
+    assert list(audit["test_days"]) == [len(f[2]) for f in folds]
+    assert not audit["leakage"].any()

@@ -287,22 +287,26 @@ def predict_regimes(model: GaussianHMM, features: np.ndarray,
     df["is_retrain_date"] = False
     return df
 
-def walk_forward_regimes(df: pd.DataFrame, n_jobs: int | None = None) -> pd.DataFrame:
-    from joblib import Parallel, delayed
-
-    features_cols = df.columns.tolist()
-
+def _retrain_dates(df: pd.DataFrame) -> pd.DatetimeIndex:
+    """First trading day on or after each retrain_frequency boundary."""
     raw_dates = pd.date_range(
         start=df.index.min(),
         end=df.index.max(),
         freq=CFG["hmm"]["retrain_frequency"]
     )
-    retrain_dates = pd.DatetimeIndex([
+    return pd.DatetimeIndex([
         df.index[df.index.searchsorted(d, side="left")]
         for d in raw_dates
         if df.index.searchsorted(d, side="left") < len(df.index)
     ])
 
+def _build_folds(df: pd.DataFrame) -> list[tuple[int, pd.DataFrame, pd.DataFrame, pd.Timestamp, pd.Timestamp]]:
+    """Expanding-window folds as (fold number, train, test, retrain date, next date).
+
+    Train ends on the retrain date; test starts the day after, so they never overlap.
+    Folds with fewer than min_train_days of training data are skipped.
+    """
+    retrain_dates = _retrain_dates(df)
     folds = []
     for i, retrain_date in enumerate(retrain_dates):
         next_date = retrain_dates[i + 1] if i + 1 < len(retrain_dates) else df.index.max()
@@ -310,7 +314,16 @@ def walk_forward_regimes(df: pd.DataFrame, n_jobs: int | None = None) -> pd.Data
         test_df = df.loc[retrain_date:next_date].iloc[1:]
         if len(train_df) < CFG["hmm"]["min_train_days"] or len(test_df) == 0:
             continue
-        folds.append((train_df, test_df, retrain_date, next_date))
+        folds.append((i, train_df, test_df, retrain_date, next_date))
+    return folds
+
+def walk_forward_regimes(df: pd.DataFrame, n_jobs: int | None = None) -> pd.DataFrame:
+    from joblib import Parallel, delayed
+
+    features_cols = df.columns.tolist()
+    retrain_dates = _retrain_dates(df)
+    folds = [(train_df, test_df, retrain_date, next_date)
+             for _, train_df, test_df, retrain_date, next_date in _build_folds(df)]
 
     effective_n_jobs = n_jobs if n_jobs is not None else CFG["hmm"]["n_jobs"]
     results = Parallel(n_jobs=effective_n_jobs)(
@@ -357,26 +370,8 @@ def audit_walk_forward(output_path: str | None = None) -> pd.DataFrame:
         output_path = CFG["paths"]["walk_forward_audit"]
     df = load_features()
 
-    raw_dates = pd.date_range(
-        start=df.index.min(),
-        end=df.index.max(),
-        freq=CFG["hmm"]["retrain_frequency"]
-    )
-    retrain_dates = pd.DatetimeIndex([
-        df.index[df.index.searchsorted(d, side="left")]
-        for d in raw_dates
-        if df.index.searchsorted(d, side="left") < len(df.index)
-    ])
-
     records = []
-    for i, retrain_date in enumerate(retrain_dates):
-        next_date = retrain_dates[i + 1] if i + 1 < len(retrain_dates) else df.index.max()
-        train_df = df.loc[:retrain_date]
-        test_df = df.loc[retrain_date:next_date].iloc[1:]
-
-        if len(train_df) < CFG["hmm"]["min_train_days"] or len(test_df) == 0:
-            continue
-
+    for i, train_df, test_df, retrain_date, next_date in _build_folds(df):
         train_end = train_df.index[-1]
         test_start = test_df.index[0]
         leakage = train_end >= test_start
