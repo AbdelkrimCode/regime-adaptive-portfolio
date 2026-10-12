@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
 
-from scripts.stress_tests import paired_block_bootstrap, compute_var, compute_cvar
+from scripts.stress_tests import paired_block_bootstrap, compute_var, compute_cvar, monte_carlo_sharpe
+from backtest.bootstrap import run_bootstrap
 
 
 N = 2000
@@ -49,3 +50,34 @@ def test_compute_var_cvar_ordering():
     var = compute_var(returns)
     cvar = compute_cvar(returns)
     assert cvar <= var, "CVaR should be at least as extreme as VaR"
+
+def _returns_tracking_volatile_rf(seed: int = 3) -> tuple[pd.Series, pd.Series]:
+    # rf swings between 0 and 10% a year; returns are rf plus a small steady edge,
+    # so the true excess Sharpe is high and stable.
+    rng = np.random.default_rng(seed)
+    dates = pd.date_range("2015-01-01", periods=N, freq="B")
+    rf = pd.Series(np.where((np.arange(N) // 250) % 2, 0.10 / 252, 0.0), index=dates)
+    returns = rf + rng.normal(0.0002, 0.0005, N)
+    return returns, rf
+
+
+def test_monte_carlo_sharpe_resamples_rf_with_returns():
+    returns, rf = _returns_tracking_volatile_rf()
+    excess = returns - rf
+    observed = excess.mean() / excess.std() * np.sqrt(252)
+
+    mc = monte_carlo_sharpe(returns, rf, n_sim=200)
+
+    assert abs(mc["mean"] - observed) < 0.5, (
+        f"Bootstrap Sharpe {mc['mean']} should center on observed {observed:.2f}"
+    )
+
+
+def test_run_bootstrap_resamples_rf_with_returns():
+    returns, rf = _returns_tracking_volatile_rf()
+    excess = returns - rf
+    observed = excess.mean() / excess.std() * np.sqrt(252)
+
+    df = run_bootstrap(returns, returns, n_iterations=100, rf=rf)
+
+    assert abs(df["port_sharpe"].mean() - observed) < 0.5

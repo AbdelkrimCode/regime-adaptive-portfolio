@@ -36,19 +36,23 @@ def run_bootstrap(
 ) -> pd.DataFrame:
     rng = np.random.default_rng(random_state)
     records = []
+    n = len(port_returns)
+    if rf is not None:
+        rf = rf.reindex(port_returns.index).ffill().fillna(0)
 
     for _ in range(n_iterations):
-        n = len(port_returns)
         indices = block_bootstrap_indices(n, block_length, rng)
 
-        port_sample  = pd.Series(port_returns.values[indices],  index=port_returns.index[:n])
-        bench_sample = pd.Series(benchmark_returns.values[indices], index=benchmark_returns.index[:n])
+        # rf is resampled with the same indices so each day keeps its own rf.
+        port_sample  = pd.Series(port_returns.values[indices],  index=port_returns.index)
+        bench_sample = pd.Series(benchmark_returns.values[indices], index=port_returns.index)
+        rf_sample = None if rf is None else pd.Series(rf.values[indices], index=port_returns.index)
 
         port_equity = (1 + port_sample).cumprod()
         bench_equity = (1 + bench_sample).cumprod()
 
-        port_metrics = compute_all(port_sample, port_equity, rf=rf)
-        bench_metrics = compute_all(bench_sample, bench_equity, rf=rf)
+        port_metrics = compute_all(port_sample, port_equity, rf=rf_sample)
+        bench_metrics = compute_all(bench_sample, bench_equity, rf=rf_sample)
 
         records.append({
             "port_sharpe":  port_metrics["sharpe_ratio"],

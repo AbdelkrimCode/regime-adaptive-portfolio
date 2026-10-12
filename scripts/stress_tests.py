@@ -36,13 +36,14 @@ def sharpe_during_high_vix(returns: pd.Series, rf: pd.Series, vix_threshold: flo
         return None
 
 def monte_carlo_sharpe(returns: pd.Series, rf: pd.Series, n_sim: int = N_SIMULATIONS) -> dict:
+    # rf is subtracted before resampling so each day keeps its own rf.
     rng = np.random.default_rng(RANDOM_STATE)
     rf_aligned = rf.reindex(returns.index).ffill().fillna(0)
+    excess_returns = returns - rf_aligned
     sharpes = []
 
     for _ in range(n_sim):
-        sampled = block_resample(returns, BLOCK_SIZE, rng)
-        excess = sampled.values - rf_aligned.values
+        excess = block_resample(excess_returns, BLOCK_SIZE, rng).values
         s = excess.mean() / excess.std() * np.sqrt(252) if excess.std() > 0 else 0.0
         sharpes.append(s)
 
