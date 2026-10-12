@@ -74,22 +74,21 @@ def forward_filter(model: GaussianHMM, features_scaled: np.ndarray) -> tuple[np.
             cov=model.covars_[i]
         )
 
-    alpha = np.zeros((n_samples, n_states))
-    alpha[0] = model.startprob_ * np.exp(log_emission[0])
-    total = alpha[0].sum()
-    if total > 0:
-        alpha[0] /= total
-    else:
-        alpha[0] = np.ones(n_states) / n_states
+    from scipy.special import logsumexp
+
+    with np.errstate(divide="ignore"):          # log(0) = -inf is valid here
+        log_start = np.log(model.startprob_)
+        log_trans = np.log(model.transmat_)
+
+    log_alpha = np.zeros((n_samples, n_states))
+    log_alpha[0] = log_start + log_emission[0]
+    log_alpha[0] -= logsumexp(log_alpha[0])
 
     for t in range(1, n_samples):
-        alpha[t] = alpha[t - 1] @ model.transmat_ * np.exp(log_emission[t])
-        total = alpha[t].sum()
-        if total > 0:
-            alpha[t] /= total
-        else:
-            alpha[t] = np.ones(n_states) / n_states
+        log_alpha[t] = logsumexp(log_alpha[t - 1][:, None] + log_trans, axis=0) + log_emission[t]
+        log_alpha[t] -= logsumexp(log_alpha[t])
 
+    alpha = np.exp(log_alpha)
     hidden_states = np.argmax(alpha, axis=1)
     return hidden_states, alpha
 

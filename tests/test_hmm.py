@@ -425,3 +425,34 @@ def test_run_static_model_refits_when_feature_columns_change(tmp_path, monkeypat
     assert fit_calls["count"] == 2, (
         "Changing feature columns without retrain=True must trigger a refit"
     )
+
+from sklearn.preprocessing import StandardScaler
+from models.hmm import _fit_hmm_core, forward_filter
+
+
+def _fitted_model_and_data():
+    rng = np.random.default_rng(42)
+    x = rng.normal(0, 1, (400, 3))
+    x[:150, 0] += 0.8
+    x[150:280, 0] -= 0.8
+    xs = StandardScaler().fit_transform(x)
+    return _fit_hmm_core(xs, n_states=3), xs
+
+
+def test_forward_filter_matches_hmmlearn_on_last_observation():
+    # For the last point of a prefix, smoothed = filtered, so hmmlearn is an independent reference.
+    model, xs = _fitted_model_and_data()
+    _, alpha = forward_filter(model, xs)
+    for t in [0, 10, 149, 150, 399]:
+        expected = model.predict_proba(xs[: t + 1])[-1]
+        np.testing.assert_allclose(alpha[t], expected, atol=1e-8)
+
+
+def test_forward_filter_survives_extreme_observation():
+    model, xs = _fitted_model_and_data()
+    extreme = np.vstack([xs, np.full((1, 3), 1e3)])
+    _, alpha = forward_filter(model, extreme)
+    assert np.all(np.isfinite(alpha))
+    np.testing.assert_allclose(alpha.sum(axis=1), 1.0)
+    # old code returned uniform (max = 1/3) here
+    assert alpha[-1].max() > 0.99
