@@ -76,10 +76,6 @@ def process_and_save(prices: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     return returns, features
 
 
-def load_returns() -> pd.DataFrame:
-    return pd.read_parquet(RETURNS_PATH)
-
-
 def load_features() -> pd.DataFrame:
     return pd.read_parquet(FEATURES_PATH)
 

@@ -31,18 +31,10 @@ def max_drawdown(equity: pd.Series) -> float:
     drawdown = (equity - peak) / peak
     return drawdown.min()  # most negative value
 
-def calmar_ratio(equity: pd.Series, returns: pd.Series) -> float:
+def calmar_ratio(equity: pd.Series) -> float:
     ann_ret = annualized_return(equity)
     mdd = abs(max_drawdown(equity))
     return ann_ret / mdd if mdd != 0 else np.nan
-
-def compute_turnover(weights: pd.DataFrame) -> pd.Series:
-    prior = weights.shift(1).fillna(0.0)
-    return (weights - prior).abs().sum(axis=1)
-
-def average_turnover(weights: pd.DataFrame) -> float:
-    daily_turnover = compute_turnover(weights)
-    return round(daily_turnover.mean(), 4)
 
 def compute_all(returns: pd.Series, equity: pd.Series, rf: pd.Series | None = None) -> dict:
     return {
@@ -50,7 +42,7 @@ def compute_all(returns: pd.Series, equity: pd.Series, rf: pd.Series | None = No
         "annualized_volatility": round(annualized_volatility(returns), 4),
         "sharpe_ratio":          round(sharpe_ratio(returns, rf=rf), 4),
         "max_drawdown":          round(max_drawdown(equity), 4),
-        "calmar_ratio":          round(calmar_ratio(equity, returns), 4)
+        "calmar_ratio":          round(calmar_ratio(equity), 4)
     }
 
 if __name__ == "__main__":

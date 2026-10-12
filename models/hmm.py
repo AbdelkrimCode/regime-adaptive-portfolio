@@ -114,10 +114,6 @@ def fit_hmm(features: np.ndarray) -> tuple[GaussianHMM | None, StandardScaler]:
     return model, scaler
 
 
-def fit_hmm_with_n(features_scaled: np.ndarray, n_states: int) -> tuple[GaussianHMM | None, None]:
-    model = _fit_hmm_core(features_scaled, n_states)
-    return model, None
-
 def _fit_fold(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
@@ -189,7 +185,7 @@ def select_n_states(
     models = {}
     for n in candidate_states:
         print(f"  Fitting HMM with {n} states...")
-        model, _ = fit_hmm_with_n(features_scaled, n)
+        model = _fit_hmm_core(features_scaled, n)
         if model is None:
             continue
         aic, bic = compute_aic_bic(model, features_scaled, n_features)

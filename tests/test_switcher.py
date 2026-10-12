@@ -103,7 +103,6 @@ def test_concentration_guard_does_not_trigger_on_diversified_weights():
 
 
 def test_concentration_guard_fallback_helper_directly():
-    assets = switcher_mod.OPTIMIZER_MAP.keys()
     all_assets = ["SPY", "TLT", "GLD", "EFA", "IEF", "QQQ", "LQD", "VNQ"]
 
     crash_fallback = switcher_mod._concentration_guard_fallback("Crash", all_assets)

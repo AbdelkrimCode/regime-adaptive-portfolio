@@ -71,7 +71,6 @@ def test_label_states_four_states():
         [-0.0005, 0.02, 0.5],
         [0.002, 0.008, 0.3],
     ])
-    feature_df = pd.DataFrame()
     labels = label_states(model)
     assert set(labels.values()) == {"Bull", "Bear", "Sideways", "Crash"}
 
@@ -84,7 +83,6 @@ def test_label_states_ordering():
         [0.0],
         [-0.001],
     ])
-    feature_df = pd.DataFrame()
     labels = label_states(model)
     means = model.means_[:, 0]
     ranking = np.argsort(means)
@@ -213,8 +211,6 @@ def test_label_states_uses_feature_cols_when_columns_reordered():
 
     labels = label_states(model, feature_cols=feature_cols)
 
-    return_idx = feature_cols.index("spy_return")
-    vol_idx = feature_cols.index("spy_vol")
     ranking = np.argsort(model.means_[:, 1])
 
     assert labels[ranking[0]] == "Bull"
@@ -301,7 +297,7 @@ def test_select_n_states_return_models_gives_matching_models():
 
 def test_select_n_states_returned_model_matches_a_fresh_refit():
 
-    from models.hmm import fit_hmm_with_n
+    from models.hmm import _fit_hmm_core
 
     rng = np.random.default_rng(0)
     features = rng.normal(0, 1, (300, 3))
@@ -309,7 +305,7 @@ def test_select_n_states_returned_model_matches_a_fresh_refit():
     best_n = scores_df["bic"].idxmin()
 
     reused_model = models[best_n]
-    fresh_model, _ = fit_hmm_with_n(features, best_n)
+    fresh_model = _fit_hmm_core(features, best_n)
 
     assert np.isclose(reused_model.score(features), fresh_model.score(features))
     assert np.allclose(reused_model.means_, fresh_model.means_)
