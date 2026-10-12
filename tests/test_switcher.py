@@ -115,3 +115,19 @@ def test_concentration_guard_fallback_helper_directly():
     # Non-Crash regimes fall back to full-universe equal-weight.
     bull_fallback = switcher_mod._concentration_guard_fallback("Bull", all_assets)
     assert np.allclose(bull_fallback, 1.0 / len(all_assets))
+
+def test_max_sharpe_receives_annual_rf(monkeypatch):
+    from tests.conftest import MOCK_RF_VALUE
+    returns = make_returns()
+    date = returns.index[-1]
+    regimes_df = make_single_day_regime(date, "Bull")
+
+    captured = {}
+    def fake_max_sharpe(r, rf):
+        captured["rf"] = rf
+        return np.ones(len(ASSETS)) / len(ASSETS)
+
+    monkeypatch.setattr(switcher_mod, "max_sharpe", fake_max_sharpe)
+    switcher_mod.compute_weights(regimes_df, returns)
+
+    assert captured["rf"] == pytest.approx(MOCK_RF_VALUE * switcher_mod.TRADING_DAYS)

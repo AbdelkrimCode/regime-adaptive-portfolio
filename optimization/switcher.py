@@ -7,7 +7,7 @@ from optimization.crash import crash_weights
 from config import load_config
 from data.risk_free import fetch_risk_free
 CFG = load_config()
-
+TRADING_DAYS = CFG["market"]["trading_days"]
 
 OPTIMIZER_MAP = {
     "Bull": max_sharpe,
@@ -61,7 +61,7 @@ def compute_weights(regimes_df: pd.DataFrame, returns: pd.DataFrame) -> pd.DataF
 
             for label in ["Bull", "Bear", "Sideways", "Crash"]:
                 if label == "Bull":
-                    raw = max_sharpe(available_returns, rf=current_rf)
+                    raw = max_sharpe(available_returns, rf=current_rf * TRADING_DAYS)
                 else:
                     raw = get_weights(label, available_returns)
                 raw = np.clip(raw, 0, None)
