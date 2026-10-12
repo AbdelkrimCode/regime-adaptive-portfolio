@@ -3,7 +3,8 @@ import pandas as pd
 from backtest.metrics import compute_all
 from data.risk_free import fetch_risk_free
 from config import load_config
-from backtest.bootstrap import block_resample, block_bootstrap_indices
+from backtest.bootstrap import block_resample, run_bootstrap, summarize
+from backtest.sharpe_test import sharpe_difference_test
 
 CFG = load_config()
 
@@ -55,46 +56,6 @@ def monte_carlo_sharpe(returns: pd.Series, rf: pd.Series, n_sim: int = N_SIMULAT
         "ci_upper": round(float(np.percentile(sharpes, 97.5)), 4),
     }
 
-def paired_block_bootstrap(
-    port_returns: pd.Series,
-    spy_returns: pd.Series,
-    rf: pd.Series,
-    block_size: int = BLOCK_SIZE,
-    n_sim: int = N_SIMULATIONS,
-) -> dict:
-    rf_aligned = rf.reindex(port_returns.index).ffill().fillna(0)
-
-    mean_rf = float(rf_aligned.mean())
-
-    def sharpe(returns: np.ndarray) -> float:
-        excess = returns - mean_rf
-        return float(excess.mean() / excess.std() * np.sqrt(252)) if excess.std() > 0 else 0.0
-
-    d_observed = sharpe(port_returns.values) - sharpe(spy_returns.values)
-
-    rng = np.random.default_rng(RANDOM_STATE)
-    n = len(port_returns)
-    
-    d_boot = []
-    for _ in range(n_sim):
-        indices = block_bootstrap_indices(n, block_size, rng)
-
-        port_sample = port_returns.values[indices]
-        spy_sample = spy_returns.values[indices]
-
-        d = sharpe(port_sample) - sharpe(spy_sample)
-        d_boot.append(d)
-
-    d_boot = np.array(d_boot)
-    p_value = float(np.mean(d_boot <= 0))
-
-    return {
-        "d_observed": round(d_observed, 4),
-        "p_value":    round(p_value, 4),
-        "ci_lower":   round(float(np.percentile(d_boot, 2.5)), 4),
-        "ci_upper":   round(float(np.percentile(d_boot, 97.5)), 4),
-    }
-
 def run_stress_tests() -> None:
     print("=" * 50)
     print("  Stress Test Analysis")
@@ -128,11 +89,18 @@ def run_stress_tests() -> None:
     print(f"  Std:          {mc['std']}")
     print(f"  95% CI:       [{mc['ci_lower']}, {mc['ci_upper']}]")
 
-    print("\n--- Paired Block Bootstrap (1000 paths) ---")
-    pb = paired_block_bootstrap(port_returns, spy_returns, rf)
-    print(f"  Observed Difference: {pb['d_observed']}")
+    print("\n--- Paired Block Bootstrap vs SPY (1000 paths) ---")
+    pb = summarize(run_bootstrap(port_returns, spy_returns, rf=rf))
+    print(f"  Mean Difference:     {pb['mean_sharpe_diff']}")
     print(f"  P-Value:             {pb['p_value']}")
     print(f"  95% CI:              [{pb['ci_lower']}, {pb['ci_upper']}]")
+
+    print("\n--- Ledoit-Wolf (2008) HAC Sharpe Difference Test vs SPY ---")
+    lw = sharpe_difference_test(port_returns, spy_returns, rf=rf)
+    print(f"  Observed Difference: {lw['d_observed']}")
+    print(f"  Std. Error:          {lw['se']}")
+    print(f"  P-Value (one-sided): {lw['p_value']}")
+    print(f"  P-Value (two-sided): {lw['p_value_two_sided']}")
 
 if __name__ == "__main__":
     run_stress_tests()
