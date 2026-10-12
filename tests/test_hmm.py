@@ -215,10 +215,10 @@ def test_label_states_uses_feature_cols_when_columns_reordered():
 
     return_idx = feature_cols.index("spy_return")
     vol_idx = feature_cols.index("spy_vol")
-    expected_ranking = np.argsort(model.means_[:, return_idx] - 0.5 * model.means_[:, vol_idx])
+    ranking = np.argsort(model.means_[:, 1])
 
-    assert labels[expected_ranking[0]] == "Crash"
-    assert labels[expected_ranking[3]] == "Bull"
+    assert labels[ranking[0]] == "Bull"
+    assert labels[ranking[3]] == "Crash"
 
 
 def test_label_states_skew_kurt_variant_ranks_by_return_only():
@@ -249,9 +249,9 @@ def test_label_states_no_feature_cols_falls_back_to_positional():
         [-0.001, 0.008],
     ])
     labels = label_states(model)
-    ranking = np.argsort(model.means_[:, 0] - 0.5 * model.means_[:, 1])
-    assert labels[ranking[0]] == "Crash"
-    assert labels[ranking[3]] == "Bull"
+    ranking = np.argsort(model.means_[:, 1])
+    assert labels[ranking[0]] == "Bull"
+    assert labels[ranking[3]] == "Crash"
 
 
 def test_block_bootstrap_indices_reused_gives_paired_consistency():
@@ -478,8 +478,7 @@ def test_fit_fold_carries_filter_state_from_training(monkeypatch):
     train_scaled = scaler.transform(train_df[cols].values)
     model = hmm_mod._fit_hmm_core(train_scaled, n_states=2)
 
-    scores = pd.DataFrame({"aic": [0.0], "bic": [0.0]}, index=pd.Index([2], name="n_states"))
-    monkeypatch.setattr(hmm_mod, "select_n_states", lambda *a, **k: (scores, {2: model}))
+    monkeypatch.setattr(hmm_mod, "_fit_hmm_core", lambda xs, n: model)
 
     period_df, _ = hmm_mod._fit_fold(train_df, test_df, train_df.index[-1], test_df.index[-1], cols)
 
@@ -493,3 +492,53 @@ def test_fit_fold_carries_filter_state_from_training(monkeypatch):
 
     np.testing.assert_allclose(got, carried[-len(test_df):], atol=1e-10)
     assert not np.allclose(got[0], restarted[0], atol=1e-3)
+
+def test_label_states_ranks_by_volatility_not_return():
+    model = MagicMock()
+    # state 0: turbulent rebound, highest return AND highest vol
+    model.means_ = np.array([
+        [ 2.0,  2.5, 1.0],
+        [ 0.5, -1.0, -0.5],
+        [ 0.0,  0.0, 0.0],
+        [-1.0,  1.0, 0.5],
+    ])
+    labels = label_states(model, feature_cols=["spy_return", "spy_vol", "mean_corr"])
+    assert labels == {1: "Bull", 2: "Sideways", 3: "Bear", 0: "Crash"}
+
+
+def test_fit_fold_uses_fixed_n_states(monkeypatch):
+    from config import load_config
+    train_df, test_df = _two_regime_frame()
+    cols = ["spy_return", "spy_vol"]
+    xs = StandardScaler().fit_transform(train_df[cols].values)
+    model = hmm_mod._fit_hmm_core(xs, n_states=2)
+
+    seen = {}
+    def fake_core(x, n):
+        seen["n"] = n
+        return model
+    monkeypatch.setattr(hmm_mod, "_fit_hmm_core", fake_core)
+    monkeypatch.setattr(hmm_mod, "select_n_states",
+                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("BIC selection should not run")))
+
+    hmm_mod._fit_fold(train_df, test_df, train_df.index[-1], test_df.index[-1], cols)
+    assert seen["n"] == load_config()["hmm"]["n_states"]
+
+from collections import deque
+from types import SimpleNamespace
+
+
+def _monitor(history, it, n_iter=100, tol=1e-2):
+    return SimpleNamespace(history=deque(history, maxlen=2), iter=it, n_iter=n_iter, tol=tol)
+
+
+def test_em_converged_rejects_likelihood_decrease():
+    assert hmm_mod._em_converged(_monitor([-100.0, -150.0], it=10)) is False
+
+
+def test_em_converged_rejects_hitting_iteration_limit():
+    assert hmm_mod._em_converged(_monitor([-100.0, -100.001], it=100)) is False
+
+
+def test_em_converged_accepts_small_change_before_limit():
+    assert hmm_mod._em_converged(_monitor([-100.0, -99.995], it=10)) is True

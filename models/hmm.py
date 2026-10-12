@@ -9,6 +9,11 @@ from data.cache_utils import is_cache_valid, write_cache_signature
 
 CFG = load_config()
 
+REGIME_ORDER = {
+    2: ["Bull", "Bear"],
+    3: ["Bull", "Sideways", "Bear"],
+    4: ["Bull", "Sideways", "Bear", "Crash"],
+}
 
 
 def load_features(path: str | None = None) -> pd.DataFrame:
@@ -17,6 +22,17 @@ def load_features(path: str | None = None) -> pd.DataFrame:
     df = pd.read_parquet(path)
     df = df.dropna()
     return df
+
+def _em_converged(monitor) -> bool:
+    """True only if EM stopped before n_iter with a small final change.
+
+    hmmlearn's monitor.converged is also True when n_iter is reached, and its
+    stopping rule accepts a large likelihood decrease, so neither is used as is.
+    """
+    history = monitor.history
+    if len(history) < 2 or monitor.iter >= monitor.n_iter:
+        return False
+    return abs(history[-1] - history[-2]) < monitor.tol
 
 def _fit_hmm_core(features_scaled: np.ndarray, n_states: int) -> GaussianHMM | None:
     best_model = None
@@ -45,11 +61,7 @@ def _fit_hmm_core(features_scaled: np.ndarray, n_states: int) -> GaussianHMM | N
     chosen = best_model if best_model is not None else last_model
 
     if chosen is not None:
-        history = chosen.monitor_.history
-        tol = chosen.monitor_.tol
-        chosen.converged_ = bool(
-            len(history) >= 2 and (history[-1] - history[-2] < tol)
-        )
+        chosen.converged_ = _em_converged(chosen.monitor_)
         chosen.n_failed_restarts_ = n_failed
         if not chosen.converged_:
             print(
@@ -115,14 +127,8 @@ def _fit_fold(
     scaler = StandardScaler()
     train_scaled = scaler.fit_transform(train_features)
 
-    scores_df, candidate_models = select_n_states(train_scaled, candidate_states=[2, 3, 4], return_models=True)
-    if scores_df.empty:
-        return None
-    best_n = scores_df["bic"].idxmin()
-
-    print(f"  Selected n_states={best_n} for fold {retrain_date.date()}")
-
-    model = candidate_models[best_n]
+    best_n = CFG["hmm"]["n_states"]
+    model = _fit_hmm_core(train_scaled, best_n)
     if model is None:
         return None
 
@@ -219,38 +225,25 @@ def plot_state_selection(scores_df: pd.DataFrame, output_path: str | None = None
     print(f"      Saved to {output_path}")
 
 def label_states(model: GaussianHMM, feature_cols: list[str] | None = None) -> dict:
-    if feature_cols is not None and "spy_return" in feature_cols:
-        return_idx = feature_cols.index("spy_return")
-        vol_idx = feature_cols.index("spy_vol") if "spy_vol" in feature_cols else None
+    """Label states by mean SPY volatility, calmest first.
+
+    StandardScaler is a positive affine map per feature, so ranking a single
+    feature gives the same order in scaled and raw units.
+    Without spy_vol (skew/kurt ablation) states are ranked by -spy_return.
+    """
+    if feature_cols is not None and "spy_vol" in feature_cols:
+        risk = model.means_[:, feature_cols.index("spy_vol")]
+    elif feature_cols is not None and "spy_return" in feature_cols:
+        risk = -model.means_[:, feature_cols.index("spy_return")]
+    elif model.means_.shape[1] > 1:
+        risk = model.means_[:, 1]      # default feature order: spy_return, spy_vol, mean_corr
     else:
-        # Fallback for callers that do not pass feature_cols.
-        return_idx = 0
-        vol_idx = 1 if model.means_.shape[1] > 1 else None
+        risk = -model.means_[:, 0]
 
-    state_means = model.means_[:, return_idx]
-    state_vols = model.means_[:, vol_idx] if vol_idx is not None else np.zeros(len(state_means))
-
-    ranking = np.argsort(state_means - 0.5 * state_vols)
+    ranking = np.argsort(risk)
     n = len(ranking)
-    if n == 2:
-        return {
-            ranking[0]: "Bear",
-            ranking[1]: "Bull"
-        }
-    if n == 3:
-        return {
-            ranking[0]: "Bear",
-            ranking[1]: "Sideways",
-            ranking[2]: "Bull"
-        }
-    if n == 4:
-        return {
-            ranking[0]: "Crash",
-            ranking[1]: "Bear",
-            ranking[2]: "Sideways",
-            ranking[3]: "Bull"
-        }
-    return {ranking[i]: f"State{i}" for i in range(n)}
+    names = REGIME_ORDER.get(n, [f"State{i}" for i in range(n)])
+    return {int(ranking[i]): names[i] for i in range(n)}
 
 def get_fitted_transition_matrix(model: GaussianHMM, state_labels: dict) -> pd.DataFrame:
     """Return the fitted model's transition matrix in regime-label order.
