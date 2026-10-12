@@ -25,7 +25,7 @@ def train_frozen_model() -> tuple:
     features = train_df[features_cols].values
     model, scaler = fit_hmm(features)
     print(f"Frozen model trained on {len(train_df)} days (up to {FREEZE_DATE})")
-    print(f"  n_states selected: {model.n_components}")
+    print(f"  n_states (fixed in config): {model.n_components}")
     return model, scaler, df, features_cols
 
 def build_regimes(model, scaler, df: pd.DataFrame, features_cols: list[str]) -> pd.DataFrame:

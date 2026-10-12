@@ -625,3 +625,18 @@ def test_fit_hmm_core_does_not_swallow_programming_errors(monkeypatch):
 
     with pytest.raises(TypeError):
         hmm_mod._fit_hmm_core(np.zeros((10, 3)), 4)
+
+
+def test_static_fit_uses_fixed_n_states_without_bic(monkeypatch):
+    from config import load_config
+
+    seen = {}
+    def fake_core(x, n):
+        seen["n"] = n
+        return None
+    monkeypatch.setattr(hmm_mod, "_fit_hmm_core", fake_core)
+    monkeypatch.setattr(hmm_mod, "select_n_states",
+                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("BIC selection should not run")))
+
+    hmm_mod.fit_hmm(np.random.default_rng(0).normal(size=(50, 3)))
+    assert seen["n"] == load_config()["hmm"]["n_states"]

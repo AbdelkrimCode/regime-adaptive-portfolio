@@ -413,12 +413,12 @@ def load_model(path: str | None = None) -> tuple[GaussianHMM, StandardScaler]:
 
 def run(retrain : bool = False, walk_forward : bool = False) -> pd.DataFrame:
     df = load_features()
-    features = df.values
 
     if walk_forward:
         print("Running walk-forward retraining...")
         result = walk_forward_regimes(df)
     else:
+        features = df.values
         model_path = CFG["paths"]["model"]
         signature = {
             "n_states": CFG["hmm"]["n_states"],
@@ -442,7 +442,9 @@ if __name__ == "__main__":
     print(result["regime"].value_counts())
     print(result.groupby("regime")["spy_return"].mean())
 
-    print("\nRunning BIC/AIC state selection...")
+    # Diagnostic only: n_states is fixed in config.yaml because BIC always
+    # picked the largest candidate, so it was not selecting anything.
+    print("\nBIC/AIC by number of states (diagnostic, not used to choose n_states)...")
     df = load_features()
     train_end = CFG["evaluation"]["train_end"]
     df_train = df.loc[:train_end]
