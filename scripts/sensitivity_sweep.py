@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 from itertools import product
 from data.fetch import fetch_prices
-from data.process import compute_returns, compute_features, process_and_save
+from data.process import compute_returns, compute_log_returns, compute_features, process_and_save
 from models.hmm import run as run_hmm, walk_forward_regimes, load_features
 from backtest.engine import run as run_backtest, run_period
 from backtest.metrics import compute_all
@@ -22,7 +22,7 @@ def run_single(vol_window: int, corr_window: int, n_jobs: int = 1) -> dict:
 
     prices = fetch_prices()
     returns = compute_returns(prices)
-    features = compute_features(returns, vol_window=vol_window, corr_window=corr_window)
+    features = compute_features(compute_log_returns(prices), vol_window=vol_window, corr_window=corr_window)
 
     rf = fetch_risk_free()
     regimes = walk_forward_regimes(features, n_jobs=n_jobs)

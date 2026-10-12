@@ -25,11 +25,18 @@ def make_prices(n=200, n_assets=3):
     return prices
 
 
-def test_compute_returns_is_log_returns():
+def test_compute_returns_is_simple_returns():
     prices = make_prices(n=5, n_assets=1)
     returns = compute_returns(prices)
-    expected = np.log(prices / prices.shift(1)).dropna()
+    expected = prices.pct_change().dropna()
     pd.testing.assert_frame_equal(returns, expected)
+
+
+def test_compute_log_returns_is_log_returns():
+    from data.process import compute_log_returns
+    prices = make_prices(n=5, n_assets=1)
+    expected = np.log(prices / prices.shift(1)).dropna()
+    pd.testing.assert_frame_equal(compute_log_returns(prices), expected)
 
 
 def test_compute_features_columns_and_no_nans():

@@ -195,3 +195,10 @@ def test_cap_and_redistribute_noop_when_already_compliant():
     w = np.array([0.3, 0.3, 0.2, 0.2])
     capped = _cap_and_redistribute(w, cap=0.6)
     assert np.allclose(capped, w)
+
+def test_mean_var_mu_is_arithmetic_annual_mean():
+    from optimization.mean_var import estimate_inputs, TRADING_DAYS
+    rng = np.random.default_rng(0)
+    r = pd.DataFrame(rng.normal(0.0004, 0.01, (500, 3)), columns=["A", "B", "C"])
+    mu, _ = estimate_inputs(r)
+    np.testing.assert_allclose(mu, r.mean().values * TRADING_DAYS)

@@ -10,7 +10,7 @@ RISK_FREE_RATE = CFG["market"]["risk_free_rate"]
 MAX_POSITION = CFG["optimizer"]["max_position"]
 
 def estimate_inputs(returns: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
-    mu = np.expm1(returns.mean().values * TRADING_DAYS)
+    mu = returns.mean().values * TRADING_DAYS
     sigma = LedoitWolf().fit(returns).covariance_ * TRADING_DAYS
     return mu, sigma
 

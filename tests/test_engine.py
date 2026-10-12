@@ -171,3 +171,18 @@ def test_run_accepts_returns_df_directly_without_reading_disk(tmp_path, monkeypa
 
     assert "portfolio_return" in result.columns
     assert not (tmp_path / "does_not_exist.parquet").exists()
+
+def test_simulate_pnl_from_known_prices():
+    from data.process import compute_returns
+    from config import load_config
+    cost = load_config()["backtest"]["transaction_cost"]
+
+    idx = pd.date_range("2020-01-01", periods=4)
+    prices = pd.DataFrame({"A": [100, 100, 110, 99], "B": [100] * 4}, index=idx)
+    returns = compute_returns(prices)                     # A: 0, +10%, -10%
+    weights = pd.DataFrame(0.5, index=returns.index, columns=returns.columns)
+
+    result = simulate(weights, returns)
+    # day 2: +5% minus cost of the initial 100% turnover, day 3: -5%
+    expected = (1 + 0.05 - cost) * (1 - 0.05)
+    assert result["equity"].iloc[-1] == pytest.approx(expected, rel=1e-12)

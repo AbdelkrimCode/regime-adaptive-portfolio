@@ -14,9 +14,11 @@ CORR_WINDOW = CFG["features"]["corr_window"]
 
 
 def compute_returns(prices: pd.DataFrame) -> pd.DataFrame:
-    returns = np.log(prices / prices.shift(1)).dropna()
-    return returns
+    return (prices / prices.shift(1) - 1).dropna()
 
+def compute_log_returns(prices: pd.DataFrame) -> pd.DataFrame:
+    """Daily log returns. Used only as HMM features."""
+    return np.log(prices / prices.shift(1)).dropna()
 
 def compute_features(returns: pd.DataFrame, vol_window: int = VOL_WINDOW, corr_window: int = CORR_WINDOW) -> pd.DataFrame:
     """
@@ -64,7 +66,7 @@ def process_and_save(prices: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     os.makedirs(PROCESSED_DIR, exist_ok=True)
 
     returns  = compute_returns(prices)
-    features = compute_features(returns)
+    features = compute_features(compute_log_returns(prices))
 
     returns.to_parquet(RETURNS_PATH)
     features.to_parquet(FEATURES_PATH)

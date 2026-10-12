@@ -1,6 +1,7 @@
 import pandas as pd
+import config
 from data.fetch import fetch_prices
-from data.process import compute_returns, compute_features, compute_skew_kurt_features
+from data.process import compute_returns, compute_log_returns, compute_features, compute_skew_kurt_features
 from models.hmm import walk_forward_regimes
 from backtest.engine import run as run_backtest, run_period
 from backtest.metrics import compute_all
@@ -24,11 +25,12 @@ def run_single(name: str, config: dict) -> dict:
 
     prices = fetch_prices()
     returns = compute_returns(prices)
+    log_returns = compute_log_returns(prices)
 
     if config["type"] == "skew_kurt":
-        features = compute_skew_kurt_features(returns, window=config["vol_window"])
+        features = compute_skew_kurt_features(log_returns, window=config["vol_window"])
     else:
-        features = compute_features(returns, vol_window=config["vol_window"], corr_window=config["corr_window"])
+        features = compute_features(log_returns, vol_window=config["vol_window"], corr_window=config["corr_window"])
 
     rf = fetch_risk_free()
     regimes = walk_forward_regimes(features)
