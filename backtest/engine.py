@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from optimization.switcher import compute_weights
 from backtest.metrics import compute_turnover
+from data.risk_free import fetch_risk_free
 from config import load_config
 
 CFG = load_config()
@@ -63,6 +64,7 @@ def run(
     regimes_df: pd.DataFrame | None = None,
     returns_df: pd.DataFrame | None = None,
     save: bool = True,
+    rf: pd.Series | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     if regimes_df is None:
         regimes_df = pd.read_parquet(CFG["paths"]["regimes"])
@@ -70,7 +72,10 @@ def run(
     if returns_df is None:
         returns_df = pd.read_parquet(CFG["paths"]["returns"])
 
-    weights = compute_weights(regimes_df, returns_df)
+    if rf is None:
+        rf = fetch_risk_free()
+
+    weights = compute_weights(regimes_df, returns_df, rf)
 
     result = simulate(weights, returns_df)
     if save:
@@ -82,7 +87,8 @@ def run_period(
     start: str,
     end: str,
     regimes_df: pd.DataFrame | None = None,
-    returns_df: pd.DataFrame | None = None
+    returns_df: pd.DataFrame | None = None,
+    rf: pd.Series | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     if regimes_df is None:
         regimes_df = pd.read_parquet(CFG["paths"]["regimes"])
@@ -93,7 +99,10 @@ def run_period(
     regimes_slice = regimes_df.loc[start:end]
     returns_slice = returns_df.loc[start:end]
 
-    weights = compute_weights(regimes_slice, returns_df)
+    if rf is None:
+        rf = fetch_risk_free()
+
+    weights = compute_weights(regimes_slice, returns_df, rf)
     result = simulate(weights, returns_slice)
 
     return result, weights

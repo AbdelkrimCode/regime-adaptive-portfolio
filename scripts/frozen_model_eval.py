@@ -55,10 +55,10 @@ def run_frozen_eval() -> None:
     regimes = build_regimes(model, scaler, df, features_cols)
 
     returns = pd.read_parquet(CFG["paths"]["returns"])
-    weights = compute_weights(regimes, returns)
+    rf = fetch_risk_free()
+    weights = compute_weights(regimes, returns, rf)
     result = simulate(weights, returns.loc[TEST_START:TEST_END])
 
-    rf = fetch_risk_free()
     port_metrics = compute_all(result["portfolio_return"], result["equity"], rf=rf)
 
     spy = returns.loc[TEST_START:TEST_END, "SPY"]

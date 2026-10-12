@@ -6,6 +6,7 @@ from optimization.risk_parity import risk_parity
 from optimization.min_variance import min_variance
 from optimization.crash import crash_weights
 from optimization.switcher import compute_weights
+from tests.conftest import MOCK_RF
 
 ASSETS = ["SPY", "TLT", "GLD", "EFA", "IEF", "QQQ", "LQD", "VNQ"]
 N_ASSETS = len(ASSETS)
@@ -134,18 +135,18 @@ def make_regimes(returns: pd.DataFrame, regime: str) -> pd.DataFrame:
 
 def test_compute_weights_shape():
     returns = make_returns()
-    w = compute_weights(make_regimes(returns, "Bull"), returns)
+    w = compute_weights(make_regimes(returns, "Bull"), returns, MOCK_RF)
     assert w.shape == (len(returns), N_ASSETS)
 
 def test_compute_weights_sum_to_one():
     returns = make_returns()
-    w = compute_weights(make_regimes(returns, "Bull"), returns).dropna()
+    w = compute_weights(make_regimes(returns, "Bull"), returns, MOCK_RF).dropna()
     assert np.allclose(w.sum(axis=1), 1.0, atol=1e-6)
 
 def test_compute_weights_equal_weight_when_history_too_short():
     returns = make_returns(n=500)
     short_returns = returns.iloc[:50]
-    w = compute_weights(make_regimes(short_returns, "Bull"), short_returns).dropna()
+    w = compute_weights(make_regimes(short_returns, "Bull"), short_returns, MOCK_RF).dropna()
     assert np.allclose(w.values, 1.0 / N_ASSETS, atol=1e-6)
     
 def make_correlated_returns(n: int = 750, seed: int = 11) -> pd.DataFrame:

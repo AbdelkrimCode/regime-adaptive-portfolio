@@ -5,7 +5,7 @@ from optimization.risk_parity import risk_parity
 from optimization.min_variance import min_variance
 from optimization.crash import crash_weights
 from config import load_config
-from data.risk_free import fetch_risk_free
+
 CFG = load_config()
 TRADING_DAYS = CFG["market"]["trading_days"]
 
@@ -35,9 +35,9 @@ def _concentration_guard_fallback(label: str, assets: list[str]) -> np.ndarray:
             return fallback
     return np.ones(len(assets)) / len(assets)
 
-def compute_weights(regimes_df: pd.DataFrame, returns: pd.DataFrame) -> pd.DataFrame:
+def compute_weights(regimes_df: pd.DataFrame, returns: pd.DataFrame, rf: pd.Series) -> pd.DataFrame:
+    """Posterior-blended target weights per day; rf is the daily risk-free series."""
     assets = returns.columns.tolist()
-    rf_series = fetch_risk_free()
     weights = pd.DataFrame(index=regimes_df.index, columns=assets, dtype=float)
     cached_weights = {"Bull": None, "Bear": None, "Sideways": None, "Crash": None}
     current_regime = None
@@ -53,9 +53,9 @@ def compute_weights(regimes_df: pd.DataFrame, returns: pd.DataFrame) -> pd.DataF
         is_retrain = row.get("is_retrain_date", False)
 
         if regime != current_regime or is_retrain:
-            current_rf = float(rf_series.reindex([date], method="ffill").iloc[0])
+            current_rf = float(rf.reindex([date], method="ffill").iloc[0])
             if np.isnan(current_rf):
-                current_rf = float(rf_series.iloc[0])
+                current_rf = float(rf.iloc[0])
 
             # All four optimizers recomputed together — blending requires consistent weights across regimes
 

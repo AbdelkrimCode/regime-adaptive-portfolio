@@ -5,6 +5,7 @@ from data.process import compute_returns, compute_features
 from models.hmm import walk_forward_regimes
 from backtest.engine import simulate
 from optimization.switcher import compute_weights
+from tests.conftest import MOCK_RF
 
 
 N_ASSETS = 4
@@ -54,7 +55,7 @@ def test_compute_weights_from_regimes():
 
     asset_returns = returns[ASSETS]
     common = regimes.index.intersection(asset_returns.index)
-    weights = compute_weights(regimes.loc[common], asset_returns.loc[common])
+    weights = compute_weights(regimes.loc[common], asset_returns.loc[common], MOCK_RF)
 
     assert weights.shape[1] == N_ASSETS
     assert not weights.dropna().empty
@@ -69,7 +70,7 @@ def test_simulate_produces_valid_equity():
 
     asset_returns = returns[ASSETS]
     common = regimes.index.intersection(asset_returns.index)
-    weights = compute_weights(regimes.loc[common], asset_returns.loc[common])
+    weights = compute_weights(regimes.loc[common], asset_returns.loc[common], MOCK_RF)
 
     result = simulate(weights, asset_returns.loc[common])
 

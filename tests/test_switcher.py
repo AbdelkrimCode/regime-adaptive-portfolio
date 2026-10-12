@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import patch
 
 import optimization.switcher as switcher_mod
+from tests.conftest import MOCK_RF
 
 
 ASSETS = ["SPY", "TLT", "GLD", "EFA", "IEF", "QQQ", "LQD", "VNQ"]
@@ -37,7 +38,7 @@ def test_concentration_guard_triggers_on_crash_regime_extreme_weights():
     extreme[ASSETS.index("IEF")] = 1.0
 
     with patch.dict(switcher_mod.OPTIMIZER_MAP, {"Crash": lambda r: extreme}):
-        weights = switcher_mod.compute_weights(regimes_df, returns)
+        weights = switcher_mod.compute_weights(regimes_df, returns, MOCK_RF)
 
     w = weights.loc[date].values
     assert np.max(w) < switcher_mod.CONCENTRATION_GUARD, (
@@ -65,7 +66,7 @@ def test_concentration_guard_triggers_on_sideways_regime_extreme_weights():
     extreme[ASSETS.index("SPY")] = 1.0
 
     with patch.dict(switcher_mod.OPTIMIZER_MAP, {"Sideways": lambda r: extreme}):
-        weights = switcher_mod.compute_weights(regimes_df, returns)
+        weights = switcher_mod.compute_weights(regimes_df, returns, MOCK_RF)
 
     w = weights.loc[date].values
     assert np.allclose(w, 1.0 / len(ASSETS), atol=1e-6)
@@ -82,7 +83,7 @@ def test_concentration_guard_triggers_on_bull_regime_extreme_weights(monkeypatch
     # Bull uses max_sharpe directly.
     monkeypatch.setattr(switcher_mod, "max_sharpe", lambda r, rf: extreme)
 
-    weights = switcher_mod.compute_weights(regimes_df, returns)
+    weights = switcher_mod.compute_weights(regimes_df, returns, MOCK_RF)
     w = weights.loc[date].values
     assert np.allclose(w, 1.0 / len(ASSETS), atol=1e-6)
 
@@ -95,7 +96,7 @@ def test_concentration_guard_does_not_trigger_on_diversified_weights():
     diversified = np.ones(len(ASSETS)) / len(ASSETS)
 
     with patch.dict(switcher_mod.OPTIMIZER_MAP, {"Sideways": lambda r: diversified}):
-        weights = switcher_mod.compute_weights(regimes_df, returns)
+        weights = switcher_mod.compute_weights(regimes_df, returns, MOCK_RF)
 
     w = weights.loc[date].values
     assert np.allclose(w, diversified, atol=1e-6)
@@ -128,6 +129,28 @@ def test_max_sharpe_receives_annual_rf(monkeypatch):
         return np.ones(len(ASSETS)) / len(ASSETS)
 
     monkeypatch.setattr(switcher_mod, "max_sharpe", fake_max_sharpe)
-    switcher_mod.compute_weights(regimes_df, returns)
+    switcher_mod.compute_weights(regimes_df, returns, MOCK_RF)
 
     assert captured["rf"] == pytest.approx(MOCK_RF_VALUE * switcher_mod.TRADING_DAYS)
+
+def test_compute_weights_uses_injected_rf_without_fetching(monkeypatch):
+    import data.risk_free as rf_mod
+
+    def no_fetch(*args, **kwargs):
+        raise AssertionError("compute_weights must not fetch rf itself")
+
+    monkeypatch.setattr(rf_mod, "fetch_risk_free", no_fetch)
+    returns = make_returns()
+    date = returns.index[-1]
+    regimes_df = make_single_day_regime(date, "Bull")
+    rf = pd.Series(0.0002, index=returns.index)
+
+    captured = {}
+    def fake_max_sharpe(r, rf):
+        captured["rf"] = rf
+        return np.ones(len(ASSETS)) / len(ASSETS)
+
+    monkeypatch.setattr(switcher_mod, "max_sharpe", fake_max_sharpe)
+    switcher_mod.compute_weights(regimes_df, returns, rf)
+
+    assert captured["rf"] == pytest.approx(0.0002 * switcher_mod.TRADING_DAYS)
