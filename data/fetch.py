@@ -10,6 +10,10 @@ TICKERS = ["SPY", "TLT", "GLD", "EFA", "IEF", "QQQ", "LQD", "VNQ"]
 RAW_DIR  = os.path.join(os.path.dirname(__file__), "raw")
 RAW_PATH = os.path.join(RAW_DIR, "prices.parquet")
 
+def inclusive_end(end: str) -> str:
+    """yfinance treats `end` as exclusive; shift one day so `end` itself is included."""
+    return (pd.Timestamp(end) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+
 
 def fetch_prices(
     tickers: list[str] = TICKERS,
@@ -18,14 +22,14 @@ def fetch_prices(
     force_refresh: bool = False,
 ) -> pd.DataFrame:
 
-    signature = {"tickers": sorted(tickers), "start": start, "end": end}
+    signature = {"tickers": sorted(tickers), "start": start, "end": end, "end_inclusive": True}
 
     if not force_refresh and is_cache_valid(RAW_PATH, signature):
         print("Loading cached prices...")
         return pd.read_parquet(RAW_PATH)
 
     print(f"Downloading {tickers} from {start} to {end} ...")
-    raw = yf.download(tickers, start=start, end=end, auto_adjust=True, progress=False)
+    raw = yf.download(tickers, start=start, end=inclusive_end(end), auto_adjust=True, progress=False)
 
     if isinstance(raw.columns, pd.MultiIndex):
         prices = raw["Close"]

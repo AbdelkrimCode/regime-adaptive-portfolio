@@ -3,6 +3,7 @@ import yfinance as yf
 import pandas as pd
 from config import load_config
 from data.cache_utils import is_cache_valid, write_cache_signature
+from data.fetch import inclusive_end
 
 _CFG = load_config()
 RF_TICKER = "^IRX"
@@ -14,13 +15,13 @@ def fetch_risk_free(
     end: str = _CFG["evaluation"]["data_end"],
     force_refresh: bool = False
 ) -> pd.Series:
-    signature = {"start": start, "end": end}
+    signature = {"start": start, "end": end, "end_inclusive": True}
 
     if not force_refresh and is_cache_valid(RF_PATH, signature):
         return pd.read_parquet(RF_PATH)["rf_daily"]
 
     print("Downloading risk-free rate (^IRX)...")
-    raw = yf.download(RF_TICKER, start=start, end=end, auto_adjust=True, progress=False)
+    raw = yf.download(RF_TICKER, start=start, end=inclusive_end(end), auto_adjust=True, progress=False)
     rf_annual = raw["Close"].squeeze()
     rf_daily = (rf_annual / 100) / 252
     rf_daily.index = pd.to_datetime(rf_daily.index)

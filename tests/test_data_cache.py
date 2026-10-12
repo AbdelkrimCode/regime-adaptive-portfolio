@@ -84,3 +84,33 @@ def test_fetch_start_and_risk_free_start_come_from_config():
 
     rf_default_start = inspect.signature(rf_mod.fetch_risk_free).parameters["start"].default
     assert rf_default_start == cfg["evaluation"]["data_start"]
+
+
+def test_fetch_prices_includes_end_date(tmp_path, monkeypatch):
+    import data.fetch as fetch_mod
+    monkeypatch.setattr(fetch_mod, "RAW_PATH", str(tmp_path / "prices.parquet"))
+    monkeypatch.setattr(fetch_mod, "RAW_DIR", str(tmp_path))
+
+    seen = {}
+    fake = make_fake_yf_download()
+    def spy(tickers, start, end, auto_adjust, progress):
+        seen["end"] = end
+        return fake(tickers, start, end, auto_adjust, progress)
+
+    with patch.object(fetch_mod.yf, "download", side_effect=spy):
+        fetch_mod.fetch_prices(tickers=["SPY"], start="2020-01-01", end="2024-12-31")
+    assert seen["end"] == "2025-01-01"
+
+
+def test_fetch_risk_free_includes_end_date(tmp_path, monkeypatch):
+    import data.risk_free as rf_mod
+    monkeypatch.setattr(rf_mod, "RF_PATH", str(tmp_path / "risk_free.parquet"))
+
+    seen = {}
+    def fake(*a, **k):
+        seen["end"] = k["end"]
+        return pd.DataFrame({"Close": [1.0] * 5}, index=pd.date_range("2024-12-24", periods=5, freq="B"))
+
+    with patch.object(rf_mod.yf, "download", side_effect=fake):
+        rf_mod.fetch_risk_free(start="2024-01-01", end="2024-12-31")
+    assert seen["end"] == "2025-01-01"
