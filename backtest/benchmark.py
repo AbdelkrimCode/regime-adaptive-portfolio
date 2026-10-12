@@ -67,6 +67,41 @@ def get_risk_parity_equity(returns: pd.DataFrame, cost: float | None = None):
     return monthly_rebalanced(returns, weights, "risk_parity", cost)
 
 
+COST_GRID_BP = (2, 5, 10)
+
+
+def _score(r: pd.Series, window: pd.DatetimeIndex, rf: pd.Series | None) -> dict:
+    r = r.reindex(window)
+    return compute_all(r, (1 + r).cumprod(), rf=rf)
+
+
+def cost_sensitivity(
+    weights: pd.DataFrame,
+    returns: pd.DataFrame,
+    rf: pd.Series | None = None,
+    costs_bp: tuple[int, ...] = COST_GRID_BP,
+) -> pd.DataFrame:
+    """Sharpe of the portfolio and every benchmark at each one-way cost in bp.
+
+    Every strategy is re-simulated at each cost and scored on the portfolio's
+    dates. SPY is buy and hold, so it pays no cost and is the same in every column.
+    """
+    rows = {}
+    for bp in costs_bp:
+        cost = bp / 10_000
+        port = simulate(weights, returns, cost=cost)["portfolio_return"]
+        window = port.index
+        rows[f"{bp} bp"] = {
+            "portfolio":    _score(port, window, rf)["sharpe_ratio"],
+            "spy":          _score(returns["SPY"], window, rf)["sharpe_ratio"],
+            "equal_weight": _score(get_equal_weight_equity(returns, cost)[0], window, rf)["sharpe_ratio"],
+            "sixty_forty":  _score(get_sixty_forty_equity(returns, cost)[0], window, rf)["sharpe_ratio"],
+            "momentum":     _score(get_momentum_equity(returns, cost=cost)[0], window, rf)["sharpe_ratio"],
+            "risk_parity":  _score(get_risk_parity_equity(returns, cost)[0], window, rf)["sharpe_ratio"],
+        }
+    return pd.DataFrame(rows)
+
+
 def run() -> dict:
     # Benchmarks are built on the full history (same inputs the portfolio's
     # optimizers see), then every strategy is scored on the portfolio's dates.
@@ -76,8 +111,7 @@ def run() -> dict:
     window = backtest.index
 
     def score(r: pd.Series) -> dict:
-        r = r.reindex(window)
-        return compute_all(r, (1 + r).cumprod(), rf=rf)
+        return _score(r, window, rf)
 
     return {
         "portfolio":    score(backtest["portfolio_return"]),

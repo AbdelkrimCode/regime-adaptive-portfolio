@@ -4,7 +4,7 @@ import numpy as np
 from models.hmm import run as run_hmm
 from backtest.engine import run as run_backtest, run_period
 from backtest.metrics import compute_all, average_turnover
-from backtest.benchmark import run as run_benchmark
+from backtest.benchmark import run as run_benchmark, cost_sensitivity
 from visualization.charts import run as run_charts
 from config import load_config
 from data.risk_free import fetch_risk_free
@@ -22,6 +22,13 @@ def print_metrics(results: dict):
               f"{results['sixty_forty'][metric]:>12} "
               f"{results['momentum'][metric]:>12} "
               f"{results['risk_parity'][metric]:>12}")
+
+def print_cost_sensitivity(table: pd.DataFrame) -> None:
+    print("\n--- Cost Sensitivity (Sharpe, one-way cost) ---\n")
+    print(f"  {'Strategy':<15}" + "".join(f"{c:>10}" for c in table.columns))
+    print(f"  {'-' * (15 + 10 * len(table.columns))}")
+    for name, row in table.iterrows():
+        print(f"  {name:<15}" + "".join(f"{v:>10.4f}" for v in row))
 
 def print_subperiod_analysis(regimes_df: pd.DataFrame, returns: pd.DataFrame) -> None:
     rf = fetch_risk_free()
@@ -144,6 +151,9 @@ def main(retrain: bool = False, charts: bool = True, walk_forward: bool = True) 
     print(f"\n  Average daily turnover: {turnover:.4f} ({turnover * 100:.2f}% of portfolio per day)")
     print(f"  Implied annual transaction cost: {turnover * CFG['backtest']['transaction_cost'] * 252 * 100:.4f}%")
 
+    returns = pd.read_parquet(CFG["paths"]["returns"])
+    print_cost_sensitivity(cost_sensitivity(weights, returns, rf=fetch_risk_free()))
+
     print("\n--- Held-out test period (2019-2024) ---")
     test_start = CFG["evaluation"]["test_start"]
     data_end = CFG["evaluation"]["data_end"]
@@ -152,7 +162,6 @@ def main(retrain: bool = False, charts: bool = True, walk_forward: bool = True) 
         end=data_end,
         regimes_df=regimes
     )
-    returns = pd.read_parquet(CFG["paths"]["returns"])
     spy_test = returns.loc[test_start:data_end, "SPY"]
     spy_test_equity = (1 + spy_test).cumprod()
     
