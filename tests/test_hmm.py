@@ -579,3 +579,49 @@ def test_audit_walk_forward_uses_the_same_folds(monkeypatch, tmp_path):
     assert list(audit["fold"]) == [f[0] for f in folds]
     assert list(audit["test_days"]) == [len(f[2]) for f in folds]
     assert not audit["leakage"].any()
+
+
+class _FlakyHMM:
+    """Stand-in for GaussianHMM whose fit raises a chosen error on given restarts."""
+    errors: dict = {}
+
+    def __init__(self, n_components, covariance_type, n_iter, random_state):
+        self.seed = random_state
+        self.n_components = n_components
+
+    def fit(self, X):
+        from config import load_config
+        exc = self.errors.get(self.seed - load_config()["hmm"]["random_state"])
+        if exc is not None:
+            raise exc
+        self.monitor_ = MagicMock(history=[0.0, 0.0], iter=2, n_iter=10, tol=1e-2)
+        return self
+
+    def score(self, X):
+        return float(self.seed)
+
+
+def test_fit_hmm_core_skips_degenerate_restarts_and_logs_them(monkeypatch, capsys):
+    import models.hmm as hmm_mod
+
+    _FlakyHMM.errors = {0: ValueError("covars must be positive-definite"),
+                        1: np.linalg.LinAlgError("singular matrix")}
+    monkeypatch.setattr(hmm_mod, "GaussianHMM", _FlakyHMM)
+
+    model = hmm_mod._fit_hmm_core(np.zeros((10, 3)), 4)
+
+    assert model is not None
+    assert model.n_failed_restarts_ == 2
+    out = capsys.readouterr().out
+    assert "ValueError: covars must be positive-definite" in out
+    assert "LinAlgError: singular matrix" in out
+
+
+def test_fit_hmm_core_does_not_swallow_programming_errors(monkeypatch):
+    import models.hmm as hmm_mod
+
+    _FlakyHMM.errors = {0: TypeError("bad argument")}
+    monkeypatch.setattr(hmm_mod, "GaussianHMM", _FlakyHMM)
+
+    with pytest.raises(TypeError):
+        hmm_mod._fit_hmm_core(np.zeros((10, 3)), 4)

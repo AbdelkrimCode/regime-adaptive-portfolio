@@ -54,8 +54,11 @@ def _fit_hmm_core(features_scaled: np.ndarray, n_states: int) -> GaussianHMM | N
             if score > best_score:
                 best_score = score
                 best_model = model
-        except Exception:
+        except (ValueError, np.linalg.LinAlgError) as exc:
+            # Degenerate restarts (e.g. a covariance that is not positive
+            # definite) are skipped; anything else is a bug and must surface.
             n_failed += 1
+            print(f"      HMM restart {i} (n_states={n_states}) failed: {type(exc).__name__}: {exc}")
             continue
 
     chosen = best_model if best_model is not None else last_model
