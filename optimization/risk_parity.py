@@ -1,15 +1,11 @@
 import numpy as np
 import pandas as pd
 import cvxpy as cp
-from sklearn.covariance import LedoitWolf
+from optimization.covariance import estimate_covariance
 from config import load_config
 
 CFG = load_config()
-TRADING_DAYS = CFG["market"]["trading_days"]
 MAX_POSITION = CFG["optimizer"]["max_position"]
-
-def estimate_covariance(returns: pd.DataFrame) -> np.ndarray:
-    return LedoitWolf().fit(returns).covariance_ * TRADING_DAYS
 
 def _cap_and_redistribute(weights: np.ndarray, cap: float, max_iter: int = 20) -> np.ndarray:
 

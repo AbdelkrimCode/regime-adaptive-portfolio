@@ -60,7 +60,7 @@ def test_risk_parity_respects_cap():
     assert np.all(risk_parity(make_returns()) <= MAX_POSITION + 1e-6)
 
 def test_risk_parity_achieves_equal_risk_contribution():
-    from optimization.risk_parity import estimate_covariance
+    from optimization.covariance import estimate_covariance
     returns = make_returns()
     sigma = estimate_covariance(returns)  # same covariance the optimizer solves against
 
@@ -163,7 +163,7 @@ def make_correlated_returns(n: int = 750, seed: int = 11) -> pd.DataFrame:
 
 def test_risk_parity_achieves_equal_risk_contribution_with_correlated_assets():
 
-    from optimization.risk_parity import estimate_covariance
+    from optimization.covariance import estimate_covariance
     returns = make_correlated_returns()
     sigma = estimate_covariance(returns)
 
@@ -202,3 +202,16 @@ def test_mean_var_mu_is_arithmetic_annual_mean():
     r = pd.DataFrame(rng.normal(0.0004, 0.01, (500, 3)), columns=["A", "B", "C"])
     mu, _ = estimate_inputs(r)
     np.testing.assert_allclose(mu, r.mean().values * TRADING_DAYS)
+
+def test_all_optimizers_share_one_covariance_estimator():
+    import optimization.covariance as cov_mod
+    import optimization.min_variance as mv_mod
+    import optimization.risk_parity as rp_mod
+    from optimization.mean_var import estimate_inputs
+
+    assert mv_mod.estimate_covariance is cov_mod.estimate_covariance
+    assert rp_mod.estimate_covariance is cov_mod.estimate_covariance
+
+    r = pd.DataFrame(np.random.default_rng(3).normal(0, 0.01, (300, 4)))
+    _, sigma = estimate_inputs(r)
+    np.testing.assert_array_equal(sigma, cov_mod.estimate_covariance(r))

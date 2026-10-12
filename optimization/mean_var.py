@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import cvxpy as cp
-from sklearn.covariance import LedoitWolf
+from optimization.covariance import estimate_covariance
 from config import load_config
 
 CFG = load_config()
@@ -11,7 +11,7 @@ MAX_POSITION = CFG["optimizer"]["max_position"]
 
 def estimate_inputs(returns: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
     mu = returns.mean().values * TRADING_DAYS
-    sigma = LedoitWolf().fit(returns).covariance_ * TRADING_DAYS
+    sigma = estimate_covariance(returns)
     return mu, sigma
 
 def max_sharpe(returns: pd.DataFrame, rf: float = RISK_FREE_RATE) -> np.ndarray:
