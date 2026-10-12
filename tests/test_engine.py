@@ -183,6 +183,27 @@ def test_simulate_pnl_from_known_prices():
     weights = pd.DataFrame(0.5, index=returns.index, columns=returns.columns)
 
     result = simulate(weights, returns)
-    # day 2: +5% minus cost of the initial 100% turnover, day 3: -5%
-    expected = (1 + 0.05 - cost) * (1 - 0.05)
+    # day 2: +5% after the initial trade, then rebalance A back from 0.55/1.05 to 0.5
+    turn = 2 * (0.55 / 1.05 - 0.5)
+    expected = 1.05 * (1 - cost) * 0.95 * (1 - cost * turn)
     assert result["equity"].iloc[-1] == pytest.approx(expected, rel=1e-12)
+
+def test_simulate_weights_drift_between_rebalances():
+    idx = pd.date_range("2020-01-01", periods=3)
+    weights = pd.DataFrame({"A": [0.5] * 3, "B": [0.5] * 3}, index=idx)
+    returns = pd.DataFrame({"A": [0.0, 0.10, 0.10], "B": [0.0, 0.0, 0.0]}, index=idx)
+    rebalance = pd.Series([True, False, False], index=idx)
+
+    result = simulate(weights, returns, cost=0.0, rebalance=rebalance)
+    # day 2 earns on drifted weights (A = 0.55 / 1.05), not on the 0.5 target
+    assert result["portfolio_return"].iloc[1] == pytest.approx(0.1 * 0.55 / 1.05)
+
+
+def test_simulate_turnover_measured_from_drifted_weights():
+    idx = pd.date_range("2020-01-01", periods=3)
+    weights = pd.DataFrame({"A": [0.5] * 3, "B": [0.5] * 3}, index=idx)
+    returns = pd.DataFrame({"A": [0.0, 0.10, 0.0], "B": [0.0, 0.0, 0.0]}, index=idx)
+
+    result = simulate(weights, returns, cost=0.0)
+    # constant targets still need trading after A drifts to 0.55 / 1.05
+    assert result["turnover"].iloc[1] == pytest.approx(2 * (0.55 / 1.05 - 0.5))

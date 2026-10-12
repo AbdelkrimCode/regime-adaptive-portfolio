@@ -140,7 +140,7 @@ def main(retrain: bool = False, charts: bool = True, walk_forward: bool = True) 
     print("\n[3/4] Computing metrics...")
     results = run_benchmark()
     print_metrics(results)
-    turnover = average_turnover(weights)
+    turnover = backtest["turnover"].mean()
     print(f"\n  Average daily turnover: {turnover:.4f} ({turnover * 100:.2f}% of portfolio per day)")
     print(f"  Implied annual transaction cost: {turnover * CFG['backtest']['transaction_cost'] * 252 * 100:.4f}%")
 

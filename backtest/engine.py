@@ -10,26 +10,53 @@ def align_data(weights: pd.DataFrame, returns: pd.DataFrame) -> tuple[pd.DataFra
     common_dates = weights.index.intersection(returns.index)
     return weights.loc[common_dates], returns.loc[common_dates]
 
-def simulate(weights: pd.DataFrame, returns: pd.DataFrame) -> pd.DataFrame:
+def simulate(
+    weights: pd.DataFrame,
+    returns: pd.DataFrame,
+    cost: float | None = None,
+    rebalance: pd.Series | None = None,
+) -> pd.DataFrame:
+    """Simulate a book that trades to target weights and drifts with prices in between.
+
+    weights.loc[t] is the target set by a trade at the close of day t; it earns the
+    return of day t+1, which is also charged that trade's cost (cost * turnover).
+    Turnover is measured from the drifted weights, not the previous target.
+    `rebalance` (bool Series) limits trading to those days; default is every day.
+    """
+    if cost is None:
+        cost = CFG["backtest"]["transaction_cost"]
     weights, returns = align_data(weights, returns)
+    targets = weights.values.astype(float)
+    rets = returns.values.astype(float)
+    if rebalance is None:
+        trade_days = np.ones(len(weights), dtype=bool)
+    else:
+        trade_days = rebalance.reindex(weights.index, fill_value=False).values.astype(bool)
 
-    weights_shifted = weights.shift(1).dropna()
-    returns_aligned = returns.loc[weights_shifted.index]
+    held = np.zeros(targets.shape[1])
+    pending = 0.0
+    port, turnover = [], []
 
-    port_returns = (weights_shifted.values * returns_aligned.values).sum(axis=1)
+    for t in range(len(weights)):
+        if t > 0:
+            gross = held @ rets[t]
+            port.append((1 + gross) * (1 - cost * pending) - 1)
+            turnover.append(pending)
+            held = held * (1 + rets[t]) / (1 + gross)
+        pending = 0.0
+        if trade_days[t] and np.isfinite(targets[t]).all():
+            pending = np.abs(targets[t] - held).sum()
+            held = targets[t].copy()
 
-    weight_changes = compute_turnover(weights_shifted)
-    costs = weight_changes * CFG["backtest"]["transaction_cost"]
-
-    port_returns = port_returns - costs.values
-    port_returns = pd.Series(port_returns, index=weights_shifted.index, name="portfolio_return")
-
-    equity = (1 + port_returns).cumprod() * CFG["backtest"]["initial_capital"]
+    idx = weights.index[1:]
+    port = pd.Series(port, index=idx, name="portfolio_return")
+    equity = (1 + port).cumprod() * CFG["backtest"]["initial_capital"]
     equity.name = "equity"
 
     return pd.DataFrame({
-        "portfolio_return": port_returns,
-        "equity": equity
+        "portfolio_return": port,
+        "turnover": pd.Series(turnover, index=idx),
+        "equity": equity,
     })
 
 def run(
