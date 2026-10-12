@@ -21,6 +21,7 @@ def fetch_prices(
     end: str = END,
     force_refresh: bool = False,
 ) -> pd.DataFrame:
+    """Adjusted close prices from yfinance, cached by tickers and date range."""
 
     signature = {"tickers": sorted(tickers), "start": start, "end": end, "end_inclusive": True}
 

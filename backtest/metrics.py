@@ -7,14 +7,17 @@ TRADING_DAYS = CFG["market"]["trading_days"]
 
 
 def annualized_return(equity: pd.Series) -> float:
+    """Compound annual growth rate of an equity curve."""
     n_periods = len(equity) - 1
     total_return = equity.iloc[-1] / equity.iloc[0]
     return total_return ** (TRADING_DAYS / n_periods) - 1
 
 def annualized_volatility(returns: pd.Series) -> float:
+    """Annualized standard deviation of daily returns."""
     return returns.std() * np.sqrt(TRADING_DAYS)
 
 def sharpe_ratio(returns: pd.Series, rf: pd.Series | None = None) -> float:
+    """Annualized Sharpe ratio; rf is a daily series subtracted day by day."""
     if rf is not None:
         rf_aligned = rf.reindex(returns.index).ffill().fillna(0)
         excess = returns - rf_aligned
@@ -27,16 +30,19 @@ def sharpe_ratio(returns: pd.Series, rf: pd.Series | None = None) -> float:
     return excess.mean() / std * np.sqrt(TRADING_DAYS)
 
 def max_drawdown(equity: pd.Series) -> float:
+    """Largest peak-to-trough decline of an equity curve, as a negative fraction."""
     peak = equity.cummax()
     drawdown = (equity - peak) / peak
-    return drawdown.min()  # most negative value
+    return drawdown.min()
 
 def calmar_ratio(equity: pd.Series) -> float:
+    """Annualized return divided by the absolute max drawdown."""
     ann_ret = annualized_return(equity)
     mdd = abs(max_drawdown(equity))
     return ann_ret / mdd if mdd != 0 else np.nan
 
 def compute_all(returns: pd.Series, equity: pd.Series, rf: pd.Series | None = None) -> dict:
+    """Headline metrics for one strategy, rounded to 4 decimals."""
     return {
         "annualized_return":     round(annualized_return(equity), 4),
         "annualized_volatility": round(annualized_volatility(returns), 4),

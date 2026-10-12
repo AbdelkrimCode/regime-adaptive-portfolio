@@ -20,6 +20,7 @@ FEATURE_SETS = {
 }
 
 def run_single(name: str, config: dict) -> dict:
+    """Rebuild features for one feature set and backtest it without touching saved outputs."""
     print(f"\n--- Feature set: {name} ---")
 
     prices = fetch_prices()
@@ -50,6 +51,7 @@ def run_single(name: str, config: dict) -> dict:
     }
 
 def main() -> None:
+    """Run every feature set and save the ablation table."""
     results = []
     for name, config in FEATURE_SETS.items():
         result = run_single(name, config)

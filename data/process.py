@@ -14,6 +14,7 @@ CORR_WINDOW = CFG["features"]["corr_window"]
 
 
 def compute_returns(prices: pd.DataFrame) -> pd.DataFrame:
+    """Daily simple returns. Used for all P&L and optimizer inputs."""
     return (prices / prices.shift(1) - 1).dropna()
 
 def compute_log_returns(prices: pd.DataFrame) -> pd.DataFrame:
@@ -21,13 +22,10 @@ def compute_log_returns(prices: pd.DataFrame) -> pd.DataFrame:
     return np.log(prices / prices.shift(1)).dropna()
 
 def compute_features(returns: pd.DataFrame, vol_window: int = VOL_WINDOW, corr_window: int = CORR_WINDOW) -> pd.DataFrame:
-    """
-    Build feature matrix for HMM fitting.
+    """HMM feature matrix from daily log returns.
 
-    Features:
-      - spy_return : daily log return of SPY
-      - spy_vol    : rolling realised volatility (annualised)
-      - mean_corr  : rolling mean pairwise correlation
+    spy_return is the SPY log return, spy_vol its rolling annualized volatility,
+    mean_corr the rolling mean pairwise correlation across all assets.
     """
     spy = returns["SPY"]
 
@@ -51,6 +49,7 @@ def compute_features(returns: pd.DataFrame, vol_window: int = VOL_WINDOW, corr_w
     return features
 
 def compute_skew_kurt_features(returns: pd.DataFrame, window: int = VOL_WINDOW) -> pd.DataFrame:
+    """Ablation feature set: SPY return with rolling skew and kurtosis."""
     spy = returns["SPY"]
     spy_skew = spy.rolling(window).skew()
     spy_kurt = spy.rolling(window).kurt()
@@ -63,6 +62,7 @@ def compute_skew_kurt_features(returns: pd.DataFrame, window: int = VOL_WINDOW) 
 
 
 def process_and_save(prices: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Compute simple returns and HMM features from prices and save both."""
     os.makedirs(PROCESSED_DIR, exist_ok=True)
 
     returns  = compute_returns(prices)
@@ -77,6 +77,7 @@ def process_and_save(prices: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def load_features() -> pd.DataFrame:
+    """Load the saved HMM feature matrix."""
     return pd.read_parquet(FEATURES_PATH)
 
 

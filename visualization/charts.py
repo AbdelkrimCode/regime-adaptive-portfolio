@@ -16,6 +16,7 @@ REGIME_COLORS = {
 FIG_SIZE = (14, 6)
 
 def plot_equity_curves(backtest: pd.DataFrame, returns: pd.DataFrame, ax=None):
+    """Plot portfolio and SPY equity curves."""
     if ax is None:
         fig, ax = plt.subplots(figsize=FIG_SIZE)
     
@@ -25,13 +26,14 @@ def plot_equity_curves(backtest: pd.DataFrame, returns: pd.DataFrame, ax=None):
     
     ax.plot(backtest["equity"], label="Regime Portfolio", color="#3498db", linewidth=1.5)
     ax.plot(spy_equity, label="SPY Buy & Hold", color="#e74c3c", linewidth=1.5, alpha=0.7)
-    ax.set_title("Portfolio vs SPY — Equity Curve")
+    ax.set_title("Portfolio vs SPY: Equity Curve")
     ax.set_ylabel("Growth of $1")
     ax.legend()
     ax.grid(True, alpha=0.3)
     return ax
 
 def plot_drawdown(backtest: pd.DataFrame, returns: pd.DataFrame, ax=None):
+    """Plot portfolio and SPY drawdowns."""
     if ax is None:
         fig, ax = plt.subplots(figsize=FIG_SIZE)
     
@@ -52,6 +54,7 @@ def plot_drawdown(backtest: pd.DataFrame, returns: pd.DataFrame, ax=None):
     return ax
 
 def plot_regime_overlay(backtest: pd.DataFrame, regimes: pd.Series, ax=None):
+    """Shade the equity curve by regime."""
     if ax is None:
         fig, ax = plt.subplots(figsize=FIG_SIZE)
     
@@ -84,6 +87,7 @@ def plot_regime_overlay(backtest: pd.DataFrame, regimes: pd.Series, ax=None):
     return ax
 
 def run():
+    """Build and save the equity, drawdown and regime overlay chart."""
     backtest = pd.read_parquet(CFG["paths"]["backtest_results"])
     returns  = pd.read_parquet(CFG["paths"]["returns"])
     regimes  = pd.read_parquet(CFG["paths"]["regimes"])["regime"]

@@ -14,13 +14,16 @@ RANDOM_STATE  = CFG["hmm"]["random_state"]
 BLOCK_SIZE = CFG["stress_test"]["block_size"]
 
 def compute_var(returns: pd.Series, confidence: float = CONFIDENCE) -> float:
+    """Historical daily value at risk at the given confidence."""
     return float(np.percentile(returns, (1 - confidence) * 100))
 
 def compute_cvar(returns: pd.Series, confidence: float = CONFIDENCE) -> float:
+    """Mean daily return on days at or below the VaR."""
     var = compute_var(returns, confidence)
     return float(returns[returns <= var].mean())
 
 def sharpe_during_high_vix(returns: pd.Series, rf: pd.Series, vix_threshold: float = VIX_THRESHOLD) -> float | None:
+    """Annualized Sharpe on days with VIX above the threshold, or None."""
     try:
         import yfinance as yf
         vix = yf.download("^VIX", start=returns.index.min(), end=returns.index.max(), progress=False, auto_adjust=True)["Close"].squeeze()
@@ -37,6 +40,7 @@ def sharpe_during_high_vix(returns: pd.Series, rf: pd.Series, vix_threshold: flo
 
 def monte_carlo_sharpe(returns: pd.Series, rf: pd.Series, n_sim: int = N_SIMULATIONS) -> dict:
     # rf is subtracted before resampling so each day keeps its own rf.
+    """Distribution of the Sharpe ratio under a block bootstrap of excess returns."""
     rng = np.random.default_rng(RANDOM_STATE)
     rf_aligned = rf.reindex(returns.index).ffill().fillna(0)
     excess_returns = returns - rf_aligned
@@ -56,6 +60,7 @@ def monte_carlo_sharpe(returns: pd.Series, rf: pd.Series, n_sim: int = N_SIMULAT
     }
 
 def run_stress_tests() -> None:
+    """Print tail risk, high-VIX Sharpe and significance tests vs SPY."""
     print("=" * 50)
     print("  Stress Test Analysis")
     print("=" * 50)

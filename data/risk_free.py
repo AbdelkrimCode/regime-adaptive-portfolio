@@ -15,6 +15,9 @@ def fetch_risk_free(
     end: str = _CFG["evaluation"]["data_end"],
     force_refresh: bool = False
 ) -> pd.Series:
+    """Daily risk-free rate from 13-week T-bill yields (^IRX), cached.
+
+    The annual yield in percent is converted to a daily rate (/100 /252)."""
     signature = {"start": start, "end": end, "end_inclusive": True}
 
     if not force_refresh and is_cache_valid(RF_PATH, signature):

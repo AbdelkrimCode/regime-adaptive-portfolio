@@ -19,7 +19,7 @@ def make_returns(n: int = 500) -> pd.DataFrame:
     data = np.random.normal(0.0003, 0.01, (n, N_ASSETS))
     return pd.DataFrame(data, index=dates, columns=ASSETS)
 
-# ——— max_sharpe ---
+# --- max_sharpe ---
 
 def test_max_sharpe_correct_length():
     assert len(max_sharpe(make_returns())) == N_ASSETS

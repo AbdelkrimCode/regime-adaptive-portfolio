@@ -23,6 +23,7 @@ def _cap_and_redistribute(weights: np.ndarray, cap: float, max_iter: int = 20) -
     return w / w.sum()
 
 def risk_parity(returns: pd.DataFrame) -> np.ndarray:
+    """Equal risk contribution weights, with a small floor and the per-asset cap."""
     sigma = estimate_covariance(returns)
     n = sigma.shape[0]
     

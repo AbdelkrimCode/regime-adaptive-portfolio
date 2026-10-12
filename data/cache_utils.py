@@ -3,11 +3,13 @@ import os
 
 
 def meta_path_for(data_path: str) -> str:
+    """Path of the JSON signature file stored next to a cached data file."""
     root, _ = os.path.splitext(data_path)
     return root + ".meta.json"
 
 
 def is_cache_valid(data_path: str, expected_signature: dict) -> bool:
+    """True if the cached file exists and was written with the same signature."""
     meta_path = meta_path_for(data_path)
     if not os.path.exists(data_path) or not os.path.exists(meta_path):
         return False
@@ -17,6 +19,7 @@ def is_cache_valid(data_path: str, expected_signature: dict) -> bool:
 
 
 def write_cache_signature(data_path: str, signature: dict) -> None:
+    """Record the signature a cached file was built with."""
     meta_path = meta_path_for(data_path)
     with open(meta_path, "w") as f:
         json.dump(signature, f)

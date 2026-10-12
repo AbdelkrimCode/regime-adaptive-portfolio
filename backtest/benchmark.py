@@ -36,17 +36,20 @@ def monthly_rebalanced(returns: pd.DataFrame, weight_fn, name: str, cost: float 
 
 
 def get_equal_weight_equity(returns: pd.DataFrame, cost: float | None = None):
+    """Equal weight across all assets, rebalanced monthly."""
     n = returns.shape[1]
     return monthly_rebalanced(returns, lambda h: np.full(n, 1.0 / n), "ew", cost)
 
 
 def get_sixty_forty_equity(returns: pd.DataFrame, cost: float | None = None):
+    """60% SPY / 40% IEF, rebalanced monthly."""
     w = pd.Series(0.0, index=returns.columns)
     w["SPY"], w["IEF"] = 0.6, 0.4
     return monthly_rebalanced(returns, lambda h: w.values, "sixty_forty", cost)
 
 
 def get_momentum_equity(returns: pd.DataFrame, lookback: int = 252, top_n: int = 3, cost: float | None = None):
+    """Equal weight in the top_n assets by trailing `lookback`-day return, rebalanced monthly."""
     def weights(history):
         if len(history) < lookback:
             return None
@@ -58,6 +61,7 @@ def get_momentum_equity(returns: pd.DataFrame, lookback: int = 252, top_n: int =
 
 
 def get_risk_parity_equity(returns: pd.DataFrame, cost: float | None = None):
+    """Risk parity on all history up to each month-end, rebalanced monthly."""
     from optimization.risk_parity import risk_parity
 
     def weights(history):
@@ -111,6 +115,7 @@ def cost_sensitivity(
 def run() -> dict:
     # Benchmarks are built on the full history (same inputs the portfolio's
     # optimizers see), then every strategy is scored on the portfolio's dates.
+    """Metrics of the saved portfolio and every benchmark on the portfolio's dates."""
     returns = pd.read_parquet(CFG["paths"]["returns"])
     backtest = pd.read_parquet(CFG["paths"]["backtest_results"])
     rf = fetch_risk_free()

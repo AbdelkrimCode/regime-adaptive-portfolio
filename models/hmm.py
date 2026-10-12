@@ -17,6 +17,7 @@ REGIME_ORDER = {
 
 
 def load_features(path: str | None = None) -> pd.DataFrame:
+    """Load HMM features, dropping rows with missing values."""
     if path is None:
         path = CFG["paths"]["features"]
     df = pd.read_parquet(path)
@@ -76,6 +77,10 @@ def _fit_hmm_core(features_scaled: np.ndarray, n_states: int) -> GaussianHMM | N
     return chosen
 
 def forward_filter(model: GaussianHMM, features_scaled: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Causal filtered posteriors P(state_t | obs_1..t), computed in log space.
+
+    Returns the argmax state and the posterior matrix; no future observation
+    is used at any t."""
     from scipy.stats import multivariate_normal
 
     n_samples = len(features_scaled)
@@ -108,6 +113,7 @@ def forward_filter(model: GaussianHMM, features_scaled: np.ndarray) -> tuple[np.
     return hidden_states, alpha
 
 def fit_hmm(features: np.ndarray) -> tuple[GaussianHMM | None, StandardScaler]:
+    """Scale features and fit an HMM with the configured n_states."""
     scaler = StandardScaler()
     features_scaled = scaler.fit_transform(features)
     model = _fit_hmm_core(features_scaled, CFG["hmm"]["n_states"])
@@ -155,6 +161,7 @@ def _fit_fold(
     return period_df, n_states_entry
 
 def count_params(n_states: int, n_features: int) -> int:
+    """Number of free parameters of a full-covariance Gaussian HMM."""
     transition = n_states * (n_states - 1)
     means = n_states * n_features
     covariances = n_states * n_features * (n_features + 1) // 2
@@ -163,6 +170,7 @@ def count_params(n_states: int, n_features: int) -> int:
 
 
 def compute_aic_bic(model: GaussianHMM, features_scaled: np.ndarray, n_features: int) -> tuple[float, float]:
+    """AIC and BIC of a fitted model on the given data."""
     n_samples = len(features_scaled)
     n_states = model.n_components
     log_likelihood = model.score(features_scaled) * n_samples
@@ -176,6 +184,7 @@ def select_n_states(
     candidate_states: list[int] | None = None,
     return_models: bool = False,
 ) -> pd.DataFrame | tuple[pd.DataFrame, dict[int, GaussianHMM]]:
+    """AIC/BIC for each candidate state count (diagnostic only)."""
     if candidate_states is None:
         candidate_states = [2, 3, 4, 5]
 
@@ -199,6 +208,7 @@ def select_n_states(
     return scores_df
 
 def plot_state_selection(scores_df: pd.DataFrame, output_path: str | None = None) -> None:
+    """Plot AIC and BIC against the number of states."""
     import matplotlib.pyplot as plt
     if output_path is None:
         output_path = CFG["paths"]["state_selection"]
@@ -217,7 +227,7 @@ def plot_state_selection(scores_df: pd.DataFrame, output_path: str | None = None
     ax2.set_ylabel("BIC")
     ax2.axvline(scores_df["bic"].idxmin(), color="darkorange", linestyle="--", alpha=0.5)
 
-    fig.suptitle("HMM State Selection — AIC / BIC", fontsize=13)
+    fig.suptitle("HMM State Selection: AIC / BIC", fontsize=13)
     plt.tight_layout()
     plt.savefig(output_path, dpi=150)
     plt.close()
@@ -260,6 +270,7 @@ def get_fitted_transition_matrix(model: GaussianHMM, state_labels: dict) -> pd.D
     return transmat
 
 def get_regime_durations(transmat: pd.DataFrame) -> pd.Series:
+    """Expected regime duration in days, 1 / (1 - p_ii), per regime."""
     diag = pd.Series({
         regime: transmat.loc[regime, regime]
         for regime in transmat.index
@@ -272,6 +283,7 @@ def get_regime_durations(transmat: pd.DataFrame) -> pd.Series:
 def predict_regimes(model: GaussianHMM, features: np.ndarray,
                     feature_df: pd.DataFrame,
                     scaler: StandardScaler) -> pd.DataFrame:
+    """Label every row of feature_df with forward-filtered regimes from one model."""
     state_labels = label_states(model, feature_cols=feature_df.columns.tolist())
     features_scaled = scaler.transform(features)
     hidden_states, posteriors = forward_filter(model, features_scaled)
@@ -317,6 +329,7 @@ def _build_folds(df: pd.DataFrame) -> list[tuple[int, pd.DataFrame, pd.DataFrame
     return folds
 
 def walk_forward_regimes(df: pd.DataFrame, n_jobs: int | None = None) -> pd.DataFrame:
+    """Quarterly expanding-window refits; each fold filters train+test and keeps the test part."""
     from joblib import Parallel, delayed
 
     features_cols = df.columns.tolist()
@@ -365,6 +378,7 @@ def walk_forward_regimes(df: pd.DataFrame, n_jobs: int | None = None) -> pd.Data
     return result
 
 def audit_walk_forward(output_path: str | None = None) -> pd.DataFrame:
+    """Write a per-fold table of train/test boundaries and flag any overlap."""
     if output_path is None:
         output_path = CFG["paths"]["walk_forward_audit"]
     df = load_features()
@@ -396,18 +410,21 @@ def audit_walk_forward(output_path: str | None = None) -> pd.DataFrame:
 
 
 def save_model(model: GaussianHMM, scaler: StandardScaler, path: str | None = None) -> None:
+    """Save a fitted model and its scaler."""
     if path is None:
         path = CFG["paths"]["model"]
     os.makedirs(os.path.dirname(path), exist_ok=True)
     joblib.dump({"model": model, "scaler": scaler}, path)
 
 def load_model(path: str | None = None) -> tuple[GaussianHMM, StandardScaler]:
+    """Load a fitted model and its scaler."""
     if path is None:
         path = CFG["paths"]["model"]
     data = joblib.load(path)
     return data["model"], data["scaler"]
 
 def run(retrain : bool = False, walk_forward : bool = False) -> pd.DataFrame:
+    """Compute regimes (walk-forward or one static model) and save them."""
     df = load_features()
 
     if walk_forward:

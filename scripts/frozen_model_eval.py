@@ -18,6 +18,7 @@ TEST_END      = CFG["evaluation"]["data_end"]
 FEATURES_COLS = pd.read_parquet(CFG["paths"]["features"]).columns.tolist()
 
 def train_frozen_model() -> tuple:
+    """Fit one HMM on data up to train_end."""
     df = load_features()
     features_cols = df.columns.tolist()
     train_df = df.loc[:FREEZE_DATE]
@@ -28,6 +29,7 @@ def train_frozen_model() -> tuple:
     return model, scaler, df, features_cols
 
 def build_regimes(model, scaler, df: pd.DataFrame, features_cols: list[str]) -> pd.DataFrame:
+    """Forward-filtered regimes for all dates from the frozen model."""
     test_df = df.loc[TEST_START:TEST_END]
     features_scaled = scaler.transform(test_df[features_cols].values)
     hidden_states, posteriors = forward_filter(model, features_scaled)
@@ -44,6 +46,7 @@ def build_regimes(model, scaler, df: pd.DataFrame, features_cols: list[str]) -> 
     return regimes
 
 def run_frozen_eval() -> None:
+    """Evaluate the frozen model on the test period against SPY."""
     print("=" * 50)
     print("  Frozen Model Evaluation")
     print(f"  Train: 2006 -> {FREEZE_DATE}")

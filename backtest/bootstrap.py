@@ -23,6 +23,7 @@ def block_bootstrap_indices(n: int, block_length: int, rng: np.random.Generator)
     return np.array(indices[:n])
 
 def block_resample(returns : pd.Series, block_length: int, rng: np.random.Generator) -> pd.Series:
+    """Block-bootstrap resample of a series, keeping its original index."""
     n = len(returns)
     indices = block_bootstrap_indices(n, block_length, rng)
     return pd.Series(returns.values[indices], index=returns.index)
@@ -35,6 +36,10 @@ def run_bootstrap(
     random_state: int = RANDOM_STATE,
     rf: pd.Series | None = None
 ) -> pd.DataFrame:
+    """Paired block bootstrap of portfolio and benchmark metrics.
+
+    Both series and rf are resampled with the same block indices, so the
+    pairing and each day's rf are preserved."""
     rng = np.random.default_rng(random_state)
     records = []
     n = len(port_returns)
@@ -66,6 +71,7 @@ def run_bootstrap(
     return pd.DataFrame(records)
 
 def summarize(bootstrap_df: pd.DataFrame) -> dict:
+    """Mean, 95% CI and one-sided p-value (share of paths with diff <= 0) of the Sharpe difference."""
     sharpe_diff = bootstrap_df["sharpe_diff"]
     p_value = (sharpe_diff <= 0).mean()
 
@@ -79,6 +85,7 @@ def summarize(bootstrap_df: pd.DataFrame) -> dict:
     }
 
 def plot_bootstrap(bootstrap_df: pd.DataFrame, output_path: str | None = None) -> None:
+    """Plot bootstrap Sharpe distributions and their difference vs SPY."""
     from config import load_config
     if output_path is None:
         output_path = load_config()["paths"]["bootstrap"]
@@ -88,7 +95,7 @@ def plot_bootstrap(bootstrap_df: pd.DataFrame, output_path: str | None = None) -
 
     axes[0].hist(bootstrap_df["port_sharpe"], bins=50, alpha=0.6, label="Portfolio", color="steelblue")
     axes[0].hist(bootstrap_df["bench_sharpe"], bins=50, alpha=0.6, label="SPY", color="darkorange")
-    axes[0].set_title("Sharpe Distribution — Portfolio vs SPY")
+    axes[0].set_title("Sharpe Distribution: Portfolio vs SPY")
     axes[0].set_xlabel("Sharpe Ratio")
     axes[0].legend()
 
@@ -97,7 +104,7 @@ def plot_bootstrap(bootstrap_df: pd.DataFrame, output_path: str | None = None) -
     axes[1].axvline(bootstrap_df["sharpe_diff"].quantile(0.025), color="gray", linestyle="--", label="95% CI")
     axes[1].axvline(bootstrap_df["sharpe_diff"].quantile(0.975), color="gray", linestyle="--")
     axes[1].set_title("Sharpe Difference Distribution")
-    axes[1].set_xlabel("Portfolio Sharpe − SPY Sharpe")
+    axes[1].set_xlabel("Portfolio Sharpe - SPY Sharpe")
     axes[1].legend()
 
     plt.tight_layout()
@@ -137,6 +144,7 @@ def compare_to_benchmarks(
 
 
 def run(output_path: str | None = None) -> pd.DataFrame:
+    """Significance table of the saved portfolio vs SPY, risk parity and 60/40; saves the SPY plot."""
     from backtest.benchmark import benchmark_returns
 
     if output_path is None:

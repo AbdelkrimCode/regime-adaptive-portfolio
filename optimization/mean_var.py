@@ -10,11 +10,13 @@ RISK_FREE_RATE = CFG["market"]["risk_free_rate"]
 MAX_POSITION = CFG["optimizer"]["max_position"]
 
 def estimate_inputs(returns: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
+    """Annualized arithmetic mean returns and shrunk covariance."""
     mu = returns.mean().values * TRADING_DAYS
     sigma = estimate_covariance(returns)
     return mu, sigma
 
 def max_sharpe(returns: pd.DataFrame, rf: float = RISK_FREE_RATE) -> np.ndarray:
+    """Long-only maximum Sharpe weights with a per-asset cap; rf is annual."""
     mu, sigma = estimate_inputs(returns)
     n = len(mu)
 

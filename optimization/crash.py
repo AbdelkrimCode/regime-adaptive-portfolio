@@ -5,6 +5,7 @@ from config import load_config
 CFG = load_config()
 
 def crash_weights(returns: pd.DataFrame) -> np.ndarray:
+    """Inverse-volatility weights over the safe-haven assets only."""
     assets = returns.columns.tolist()
     weights = np.zeros(len(assets))
     safe_havens = [a for a in CFG["optimizer"]["safe_haven_assets"] if a in assets]

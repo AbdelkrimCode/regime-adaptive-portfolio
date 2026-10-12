@@ -7,6 +7,7 @@ from config import load_config
 CFG = load_config()
 
 def min_variance(returns: pd.DataFrame) -> np.ndarray:
+    """Long-only minimum variance weights with a per-asset cap."""
     sigma = estimate_covariance(returns)
     n = sigma.shape[0]
     

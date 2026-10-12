@@ -13,6 +13,7 @@ from data.risk_free import fetch_risk_free
 CFG = load_config()
 
 def print_metrics(results: dict):
+    """Print the full-period metrics table for the portfolio and benchmarks."""
     print(f"\n{'Metric':<25} {'Portfolio':>12} {'SPY':>12} {'EqualWeight':>12} {'60/40':>12} {'Momentum':>12} {'RiskParity':>12}")
     print("-" * 92)
     for metric in results["portfolio"]:
@@ -25,6 +26,7 @@ def print_metrics(results: dict):
               f"{results['risk_parity'][metric]:>12}")
 
 def print_cost_sensitivity(table: pd.DataFrame) -> None:
+    """Print Sharpe of every strategy at each one-way cost."""
     print("\n--- Cost Sensitivity (Sharpe, one-way cost) ---\n")
     print(f"  {'Strategy':<15}" + "".join(f"{c:>10}" for c in table.columns))
     print(f"  {'-' * (15 + 10 * len(table.columns))}")
@@ -32,6 +34,7 @@ def print_cost_sensitivity(table: pd.DataFrame) -> None:
         print(f"  {name:<15}" + "".join(f"{v:>10.4f}" for v in row))
 
 def print_significance(table: pd.DataFrame) -> None:
+    """Print bootstrap and Ledoit-Wolf Sharpe-difference tests per benchmark."""
     print("\n--- Sharpe Difference Tests (portfolio minus benchmark, one-sided) ---\n")
     print(f"  {'Benchmark':<15} {'Diff':>8} {'Boot p':>8} {'Boot 95% CI':>20} {'LW SE':>8} {'LW p':>8}")
     print(f"  {'-' * 71}")
@@ -40,6 +43,7 @@ def print_significance(table: pd.DataFrame) -> None:
         print(f"  {name:<15} {row['sharpe_diff']:>8.4f} {row['boot_p']:>8.4f} {ci:>20} {row['lw_se']:>8.4f} {row['lw_p']:>8.4f}")
 
 def print_subperiod_analysis(regimes_df: pd.DataFrame, returns: pd.DataFrame) -> None:
+    """Print portfolio and SPY metrics for each configured subperiod."""
     rf = fetch_risk_free()
     print("\n--- Subperiod Analysis ---\n")
 
@@ -61,6 +65,7 @@ def print_subperiod_analysis(regimes_df: pd.DataFrame, returns: pd.DataFrame) ->
         print()
 
 def compute_regime_runs(regimes_df: pd.DataFrame) -> pd.DataFrame:
+    """Consecutive runs of the same regime label, with their lengths in days."""
     regime_seq = regimes_df["regime"]
 
     runs = []
@@ -94,6 +99,7 @@ def compute_empirical_transition_matrix(runs_df: pd.DataFrame, labels: list[str]
 
 
 def print_regime_diagnostics(regimes_df: pd.DataFrame) -> None:
+    """Print regime run-length statistics and the empirical transition matrix."""
     print("\n--- Regime Diagnostics ---\n")
 
     runs_df = compute_regime_runs(regimes_df)
@@ -124,6 +130,7 @@ def print_regime_diagnostics(regimes_df: pd.DataFrame) -> None:
         print()
 
 def print_jarque_bera(regimes_df: pd.DataFrame) -> None:
+    """Print a Jarque-Bera normality test of SPY returns within each regime."""
     from scipy.stats import jarque_bera
 
     print("\n--- Jarque-Bera Normality Test per Regime ---\n")
@@ -141,6 +148,7 @@ def print_jarque_bera(regimes_df: pd.DataFrame) -> None:
         print(f"  {regime:<12} {len(subset):>6} {skew:>8.3f} {kurt:>10.3f} {jb_stat:>10.2f} {p_value:>10.4f} {normal:>8}")
 
 def main(retrain: bool = False, charts: bool = True, walk_forward: bool = True) -> None:
+    """Run regime detection, backtest, benchmarks and diagnostics end to end."""
     print("=" * 50)
     print("  Regime Adaptive Portfolio")
     print("=" * 50)

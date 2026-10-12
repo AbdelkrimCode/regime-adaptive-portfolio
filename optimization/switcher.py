@@ -21,6 +21,7 @@ CONCENTRATION_GUARD = 0.99
 SAFE_HAVEN_ASSETS = CFG["optimizer"]["safe_haven_assets"]
 
 def get_weights(regime: str, returns: pd.DataFrame) -> np.ndarray:
+    """Weights from the optimizer mapped to `regime`."""
     optimizer = OPTIMIZER_MAP[regime]
     return optimizer(returns)
 
@@ -57,7 +58,8 @@ def compute_weights(regimes_df: pd.DataFrame, returns: pd.DataFrame, rf: pd.Seri
             if np.isnan(current_rf):
                 current_rf = float(rf.iloc[0])
 
-            # All four optimizers recomputed together — blending requires consistent weights across regimes
+            # All four optimizers are refreshed together so the blend mixes
+            # weights estimated on the same history.
 
             for label in ["Bull", "Bear", "Sideways", "Crash"]:
                 if label == "Bull":

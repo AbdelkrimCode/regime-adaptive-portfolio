@@ -16,6 +16,7 @@ CORR_WINDOWS  = [42, 63, 126]
 RESULTS_PATH  = CFG["paths"]["sensitivity_results"]
 
 def run_single(vol_window: int, corr_window: int, n_jobs: int = 1) -> dict:
+    """Backtest one (vol_window, corr_window) pair without touching saved outputs."""
     print(f"\n--- VOL_WINDOW={vol_window}, CORR_WINDOW={corr_window} ---")
 
     prices = fetch_prices()
@@ -47,6 +48,7 @@ def run_single(vol_window: int, corr_window: int, n_jobs: int = 1) -> dict:
     }
 
 def main() -> None:
+    """Sweep feature windows and save the results table."""
     from joblib import Parallel, delayed
     combinations = list(product(VOL_WINDOWS, CORR_WINDOWS))
     results = Parallel(n_jobs=-1)(delayed(run_single)(vol_window, corr_window) for vol_window, corr_window in combinations)
@@ -57,6 +59,7 @@ def main() -> None:
     print(f"\nFull results saved to {RESULTS_PATH}")
 
 def bootstrap_sweep() -> None:
+    """Bootstrap p-value vs SPY for several block lengths."""
     from backtest.bootstrap import run_bootstrap, summarize
 
     block_lengths = [10, 20, 40]

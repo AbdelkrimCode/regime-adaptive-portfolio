@@ -7,6 +7,7 @@ from config import load_config
 CFG = load_config()
 
 def align_data(weights: pd.DataFrame, returns: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Restrict weights and returns to their common dates."""
     common_dates = weights.index.intersection(returns.index)
     return weights.loc[common_dates], returns.loc[common_dates]
 
@@ -65,6 +66,7 @@ def run(
     save: bool = True,
     rf: pd.Series | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Backtest the posterior-blended portfolio on all regime dates."""
     if regimes_df is None:
         regimes_df = pd.read_parquet(CFG["paths"]["regimes"])
 
@@ -89,6 +91,7 @@ def run_period(
     returns_df: pd.DataFrame | None = None,
     rf: pd.Series | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Backtest a sub-period; optimizers still see all history before each date."""
     if regimes_df is None:
         regimes_df = pd.read_parquet(CFG["paths"]["regimes"])
 
