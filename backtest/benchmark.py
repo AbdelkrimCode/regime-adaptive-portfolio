@@ -1,147 +1,97 @@
 import pandas as pd
 import numpy as np
 from data.risk_free import fetch_risk_free
-from backtest.metrics import compute_all, compute_turnover
+from backtest.metrics import compute_all
+from backtest.engine import simulate
 from config import load_config
 
 CFG = load_config()
-TRANSACTION_COST = CFG["backtest"]["transaction_cost"]
-MIN_HISTORY      = CFG["hmm"]["min_train_days"] // 2
+MIN_HISTORY = CFG["hmm"]["min_train_days"] // 2
 
-def apply_transaction_costs(weights: pd.DataFrame, returns: pd.Series) -> pd.Series:
-    weight_changes = compute_turnover(weights)
-    costs = weight_changes * TRANSACTION_COST
-    return returns - costs
 
-def get_equal_weight_equity(returns: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
-    n_assets = len(returns.columns)
-    monthly_ends = returns.resample("ME").last().index
+def month_end_flags(index: pd.DatetimeIndex) -> pd.Series:
+    """True on the last trading day of each month in `index`."""
+    dates = index.to_series()
+    return dates.groupby(index.to_period("M")).transform("max") == dates
 
-    weights = pd.DataFrame(index=returns.index, columns=returns.columns, dtype=float)
 
-    for i, month_end in enumerate(monthly_ends):
-        next_month_end = monthly_ends[i + 1] if i + 1 < len(monthly_ends) else returns.index[-1]
-        mask = (returns.index > month_end) & (returns.index <= next_month_end)
-        weights.loc[mask] = 1.0 / n_assets
+def monthly_rebalanced(returns: pd.DataFrame, weight_fn, name: str, cost: float | None = None) -> tuple[pd.Series, pd.Series]:
+    """Trade to weight_fn(history) at each month-end close, then hold and drift.
 
-    weights = weights.dropna()
-    weights_shifted = weights.shift(1).dropna()
-    aligned_returns = returns.loc[weights_shifted.index]
-    port_returns = (weights_shifted.values * aligned_returns.values).sum(axis=1)
-    port_returns = pd.Series(port_returns, index=weights_shifted.index, name="ew_return")
-    port_returns = apply_transaction_costs(weights_shifted, port_returns)
-    equity = (1 + port_returns).cumprod()
-    equity.name = "ew_equity"
-    return port_returns, equity
+    weight_fn gets returns up to and including the rebalance day and returns a
+    weight vector, or None when there is not enough history yet (book stays put).
+    """
+    rebalance = month_end_flags(returns.index)
+    targets = pd.DataFrame(np.nan, index=returns.index, columns=returns.columns)
+    for date in returns.index[rebalance.values]:
+        w = weight_fn(returns.loc[:date])
+        if w is not None:
+            targets.loc[date] = w
 
-def get_sixty_forty_equity(returns: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
-    monthly_ends = returns.resample("ME").last().index
+    result = simulate(targets, returns, cost=cost, rebalance=rebalance)
+    return (
+        result["portfolio_return"].rename(f"{name}_return"),
+        result["equity"].rename(f"{name}_equity"),
+    )
 
-    weights = pd.DataFrame(index=returns.index, columns=returns.columns, dtype=float)
 
-    for i, month_end in enumerate(monthly_ends):
-        next_month_end = monthly_ends[i + 1] if i + 1 < len(monthly_ends) else returns.index[-1]
-        mask = (returns.index > month_end) & (returns.index <= next_month_end)
-        row = pd.Series({col: 0.0 for col in returns.columns})
-        row["SPY"] = 0.6
-        row["IEF"] = 0.4
-        weights.loc[mask] = row.values
+def get_equal_weight_equity(returns: pd.DataFrame, cost: float | None = None):
+    n = returns.shape[1]
+    return monthly_rebalanced(returns, lambda h: np.full(n, 1.0 / n), "ew", cost)
 
-    weights = weights.dropna()
-    weights_shifted = weights.shift(1).dropna()
-    aligned_returns = returns.loc[weights_shifted.index]
-    port_returns = (weights_shifted.values * aligned_returns.values).sum(axis=1)
-    port_returns = pd.Series(port_returns, index=weights_shifted.index, name="sixty_forty_return")
-    port_returns = apply_transaction_costs(weights_shifted, port_returns)
-    equity = (1 + port_returns).cumprod()
-    equity.name = "sixty_forty_equity"
-    return port_returns, equity
 
-def get_momentum_equity(returns: pd.DataFrame, lookback: int = 252, top_n: int = 3) -> tuple[pd.Series, pd.Series]:
-    monthly_ends = returns.resample("ME").last().index
+def get_sixty_forty_equity(returns: pd.DataFrame, cost: float | None = None):
+    w = pd.Series(0.0, index=returns.columns)
+    w["SPY"], w["IEF"] = 0.6, 0.4
+    return monthly_rebalanced(returns, lambda h: w.values, "sixty_forty", cost)
 
-    weights = pd.DataFrame(index=returns.index, columns=returns.columns, dtype=float)
 
-    for i, month_end in enumerate(monthly_ends):
-        next_month_end = monthly_ends[i + 1] if i + 1 < len(monthly_ends) else returns.index[-1]
-
-        history = returns.loc[:month_end]
+def get_momentum_equity(returns: pd.DataFrame, lookback: int = 252, top_n: int = 3, cost: float | None = None):
+    def weights(history):
         if len(history) < lookback:
-            continue
-
+            return None
         cumulative = (1 + history.tail(lookback)).prod() - 1
-        top_assets = cumulative.nlargest(top_n).index.tolist()
+        w = pd.Series(0.0, index=history.columns)
+        w[cumulative.nlargest(top_n).index] = 1.0 / top_n
+        return w.values
+    return monthly_rebalanced(returns, weights, "momentum", cost)
 
-        mask = (returns.index > month_end) & (returns.index <= next_month_end)
-        row = pd.Series({col: 0.0 for col in returns.columns})
-        for asset in top_assets:
-            row[asset] = 1.0 / top_n
-        weights.loc[mask] = row.values
 
-    weights = weights.dropna()
-    weights_shifted = weights.shift(1).dropna()
-    aligned_returns = returns.loc[weights_shifted.index]
-    port_returns = (weights_shifted.values * aligned_returns.values).sum(axis=1)
-    port_returns = pd.Series(port_returns, index=weights_shifted.index, name="momentum_return")
-    port_returns = apply_transaction_costs(weights_shifted, port_returns)
-    equity = (1 + port_returns).cumprod()
-    equity.name = "momentum_equity"
-    return port_returns, equity
-
-def get_risk_parity_equity(returns: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
+def get_risk_parity_equity(returns: pd.DataFrame, cost: float | None = None):
     from optimization.risk_parity import risk_parity
 
-    monthly_ends = returns.resample("ME").last().index
-    weights = pd.DataFrame(index=returns.index, columns=returns.columns, dtype=float)
-
-    for i, month_end in enumerate(monthly_ends):
-        next_month_end = monthly_ends[i + 1] if i + 1 < len(monthly_ends) else returns.index[-1]
-        history = returns.loc[:month_end]
+    def weights(history):
         if len(history) < MIN_HISTORY:
-            continue
-        raw = risk_parity(history)
-        mask = (returns.index > month_end) & (returns.index <= next_month_end)
-        weights.loc[mask] = raw
+            return None
+        return risk_parity(history)
+    return monthly_rebalanced(returns, weights, "risk_parity", cost)
 
-    weights = weights.dropna()
-    weights_shifted = weights.shift(1).dropna()
-    aligned_returns = returns.loc[weights_shifted.index]
-    port_returns = (weights_shifted.values * aligned_returns.values).sum(axis=1)
-    port_returns = pd.Series(port_returns, index=weights_shifted.index, name="risk_parity_return")
-    port_returns = apply_transaction_costs(weights_shifted, port_returns)
-    equity = (1 + port_returns).cumprod()
-    equity.name = "risk_parity_equity"
-    return port_returns, equity
 
 def run() -> dict:
-
+    # Benchmarks are built on the full history (same inputs the portfolio's
+    # optimizers see), then every strategy is scored on the portfolio's dates.
     returns = pd.read_parquet(CFG["paths"]["returns"])
     backtest = pd.read_parquet(CFG["paths"]["backtest_results"])
     rf = fetch_risk_free()
+    window = backtest.index
 
-    common = returns.index.intersection(backtest.index)
-    returns = returns.loc[common]
-
-    spy_returns = returns["SPY"]
-    spy_equity = (1 + spy_returns).cumprod()
-
-    ew_returns, ew_equity = get_equal_weight_equity(returns)
-    sf_returns, sf_equity = get_sixty_forty_equity(returns)
-    mom_returns, mom_equity = get_momentum_equity(returns)
-    rp_returns, rp_equity = get_risk_parity_equity(returns)
+    def score(r: pd.Series) -> dict:
+        r = r.reindex(window)
+        return compute_all(r, (1 + r).cumprod(), rf=rf)
 
     return {
-        "portfolio":    compute_all(backtest["portfolio_return"], backtest["equity"], rf=rf),
-        "spy":          compute_all(spy_returns, spy_equity, rf=rf),
-        "equal_weight": compute_all(ew_returns, ew_equity, rf=rf),
-        "sixty_forty":  compute_all(sf_returns, sf_equity, rf=rf),
-        "momentum":     compute_all(mom_returns, mom_equity, rf=rf),
-        "risk_parity": compute_all(rp_returns, rp_equity, rf=rf),
+        "portfolio":    score(backtest["portfolio_return"]),
+        "spy":          score(returns["SPY"]),
+        "equal_weight": score(get_equal_weight_equity(returns)[0]),
+        "sixty_forty":  score(get_sixty_forty_equity(returns)[0]),
+        "momentum":     score(get_momentum_equity(returns)[0]),
+        "risk_parity":  score(get_risk_parity_equity(returns)[0]),
     }
+
 
 if __name__ == "__main__":
     results = run()
-    
+
     print(f"{'Metric':<25} {'Portfolio':>12} {'SPY':>12}")
     print("-" * 50)
     for metric in results["portfolio"]:
