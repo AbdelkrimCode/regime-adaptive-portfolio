@@ -178,7 +178,7 @@ def main(retrain: bool = False, charts: bool = True, walk_forward: bool = True) 
         rf=fetch_risk_free(),
     ))
 
-    print("\n--- Held-out test period (2019-2024) ---")
+    print("\n--- 2019-2024 subperiod (seen during development, not a clean holdout) ---")
     test_start = CFG["evaluation"]["test_start"]
     data_end = CFG["evaluation"]["data_end"]
     test_result, _ = run_period(

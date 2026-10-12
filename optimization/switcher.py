@@ -73,7 +73,7 @@ def compute_weights(regimes_df: pd.DataFrame, returns: pd.DataFrame, rf: pd.Seri
                 else:
                     raw = raw / total
                 if np.max(raw) > CONCENTRATION_GUARD:
-                        raw = _concentration_guard_fallback(label, assets)
+                    raw = _concentration_guard_fallback(label, assets)
                 cached_weights[label] = raw
             current_regime = regime
 

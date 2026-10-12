@@ -113,9 +113,11 @@ def cost_sensitivity(
 
 
 def run() -> dict:
-    # Benchmarks are built on the full history (same inputs the portfolio's
-    # optimizers see), then every strategy is scored on the portfolio's dates.
-    """Metrics of the saved portfolio and every benchmark on the portfolio's dates."""
+    """Metrics of the saved portfolio and every benchmark on the portfolio's dates.
+
+    Benchmarks are built on the full history (the same inputs the portfolio's
+    optimizers see), then every strategy is scored on the portfolio's dates.
+    """
     returns = pd.read_parquet(CFG["paths"]["returns"])
     backtest = pd.read_parquet(CFG["paths"]["backtest_results"])
     rf = fetch_risk_free()
