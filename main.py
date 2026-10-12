@@ -4,7 +4,8 @@ import numpy as np
 from models.hmm import run as run_hmm
 from backtest.engine import run as run_backtest, run_period
 from backtest.metrics import compute_all, average_turnover
-from backtest.benchmark import run as run_benchmark, cost_sensitivity
+from backtest.benchmark import run as run_benchmark, cost_sensitivity, benchmark_returns
+from backtest.bootstrap import compare_to_benchmarks, SIGNIFICANCE_BENCHMARKS
 from visualization.charts import run as run_charts
 from config import load_config
 from data.risk_free import fetch_risk_free
@@ -29,6 +30,14 @@ def print_cost_sensitivity(table: pd.DataFrame) -> None:
     print(f"  {'-' * (15 + 10 * len(table.columns))}")
     for name, row in table.iterrows():
         print(f"  {name:<15}" + "".join(f"{v:>10.4f}" for v in row))
+
+def print_significance(table: pd.DataFrame) -> None:
+    print("\n--- Sharpe Difference Tests (portfolio minus benchmark, one-sided) ---\n")
+    print(f"  {'Benchmark':<15} {'Diff':>8} {'Boot p':>8} {'Boot 95% CI':>20} {'LW SE':>8} {'LW p':>8}")
+    print(f"  {'-' * 71}")
+    for name, row in table.iterrows():
+        ci = f"[{row['boot_ci_lower']:.3f}, {row['boot_ci_upper']:.3f}]"
+        print(f"  {name:<15} {row['sharpe_diff']:>8.4f} {row['boot_p']:>8.4f} {ci:>20} {row['lw_se']:>8.4f} {row['lw_p']:>8.4f}")
 
 def print_subperiod_analysis(regimes_df: pd.DataFrame, returns: pd.DataFrame) -> None:
     rf = fetch_risk_free()
@@ -153,6 +162,13 @@ def main(retrain: bool = False, charts: bool = True, walk_forward: bool = True) 
 
     returns = pd.read_parquet(CFG["paths"]["returns"])
     print_cost_sensitivity(cost_sensitivity(weights, returns, rf=fetch_risk_free()))
+
+    benchmarks = benchmark_returns(returns)
+    print_significance(compare_to_benchmarks(
+        backtest["portfolio_return"],
+        {name: benchmarks[name] for name in SIGNIFICANCE_BENCHMARKS},
+        rf=fetch_risk_free(),
+    ))
 
     print("\n--- Held-out test period (2019-2024) ---")
     test_start = CFG["evaluation"]["test_start"]

@@ -70,6 +70,17 @@ def get_risk_parity_equity(returns: pd.DataFrame, cost: float | None = None):
 COST_GRID_BP = (2, 5, 10)
 
 
+def benchmark_returns(returns: pd.DataFrame, cost: float | None = None) -> dict[str, pd.Series]:
+    """Daily returns of every benchmark, built on the full history of `returns`."""
+    return {
+        "spy":          returns["SPY"],
+        "equal_weight": get_equal_weight_equity(returns, cost)[0],
+        "sixty_forty":  get_sixty_forty_equity(returns, cost)[0],
+        "momentum":     get_momentum_equity(returns, cost=cost)[0],
+        "risk_parity":  get_risk_parity_equity(returns, cost)[0],
+    }
+
+
 def _score(r: pd.Series, window: pd.DatetimeIndex, rf: pd.Series | None) -> dict:
     r = r.reindex(window)
     return compute_all(r, (1 + r).cumprod(), rf=rf)
@@ -90,14 +101,9 @@ def cost_sensitivity(
     for bp in costs_bp:
         cost = bp / 10_000
         port = simulate(weights, returns, cost=cost)["portfolio_return"]
-        window = port.index
+        strategies = {"portfolio": port, **benchmark_returns(returns, cost)}
         rows[f"{bp} bp"] = {
-            "portfolio":    _score(port, window, rf)["sharpe_ratio"],
-            "spy":          _score(returns["SPY"], window, rf)["sharpe_ratio"],
-            "equal_weight": _score(get_equal_weight_equity(returns, cost)[0], window, rf)["sharpe_ratio"],
-            "sixty_forty":  _score(get_sixty_forty_equity(returns, cost)[0], window, rf)["sharpe_ratio"],
-            "momentum":     _score(get_momentum_equity(returns, cost=cost)[0], window, rf)["sharpe_ratio"],
-            "risk_parity":  _score(get_risk_parity_equity(returns, cost)[0], window, rf)["sharpe_ratio"],
+            name: _score(r, port.index, rf)["sharpe_ratio"] for name, r in strategies.items()
         }
     return pd.DataFrame(rows)
 
@@ -108,19 +114,8 @@ def run() -> dict:
     returns = pd.read_parquet(CFG["paths"]["returns"])
     backtest = pd.read_parquet(CFG["paths"]["backtest_results"])
     rf = fetch_risk_free()
-    window = backtest.index
-
-    def score(r: pd.Series) -> dict:
-        return _score(r, window, rf)
-
-    return {
-        "portfolio":    score(backtest["portfolio_return"]),
-        "spy":          score(returns["SPY"]),
-        "equal_weight": score(get_equal_weight_equity(returns)[0]),
-        "sixty_forty":  score(get_sixty_forty_equity(returns)[0]),
-        "momentum":     score(get_momentum_equity(returns)[0]),
-        "risk_parity":  score(get_risk_parity_equity(returns)[0]),
-    }
+    strategies = {"portfolio": backtest["portfolio_return"], **benchmark_returns(returns)}
+    return {name: _score(r, backtest.index, rf) for name, r in strategies.items()}
 
 
 if __name__ == "__main__":

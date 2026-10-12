@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from backtest.metrics import compute_all
 from data.risk_free import fetch_risk_free
+from backtest.sharpe_test import sharpe_difference_test
 from config import load_config
 
 CFG          = load_config()
@@ -106,26 +107,53 @@ def plot_bootstrap(bootstrap_df: pd.DataFrame, output_path: str | None = None) -
 
 
 
-def run(output_path: str | None = None) -> dict:
+SIGNIFICANCE_BENCHMARKS = ("spy", "risk_parity", "sixty_forty")
+
+
+def compare_to_benchmarks(
+    port_returns: pd.Series,
+    benchmarks: dict[str, pd.Series],
+    rf: pd.Series | None = None,
+) -> pd.DataFrame:
+    """Paired block bootstrap and Ledoit-Wolf test of the portfolio vs each benchmark.
+
+    Both p-values are one-sided (H1: portfolio Sharpe is higher). Benchmarks are
+    scored on the portfolio's dates.
+    """
+    rows = {}
+    for name, bench in benchmarks.items():
+        bench = bench.reindex(port_returns.index)
+        boot = summarize(run_bootstrap(port_returns, bench, rf=rf))
+        lw = sharpe_difference_test(port_returns, bench, rf=rf)
+        rows[name] = {
+            "sharpe_diff":   lw["d_observed"],
+            "boot_p":        boot["p_value"],
+            "boot_ci_lower": boot["ci_lower"],
+            "boot_ci_upper": boot["ci_upper"],
+            "lw_se":         lw["se"],
+            "lw_p":          lw["p_value"],
+        }
+    return pd.DataFrame(rows).T
+
+
+def run(output_path: str | None = None) -> pd.DataFrame:
+    from backtest.benchmark import benchmark_returns
+
     if output_path is None:
         output_path = CFG["paths"]["bootstrap"]
     returns = pd.read_parquet(CFG["paths"]["returns"])
     backtest = pd.read_parquet(CFG["paths"]["backtest_results"])
-
-    common = returns.index.intersection(backtest.index)
-    spy_returns = returns.loc[common, "SPY"]
-    port_returns = backtest.loc[common, "portfolio_return"]
+    port_returns = backtest["portfolio_return"]
     rf = fetch_risk_free()
 
-    print("  Running block bootstrap (1000 iterations)...")
-    bootstrap_df = run_bootstrap(port_returns, spy_returns, rf=rf)
-    summary = summarize(bootstrap_df)
-    plot_bootstrap(bootstrap_df, output_path)
+    all_benchmarks = benchmark_returns(returns)
+    benchmarks = {name: all_benchmarks[name] for name in SIGNIFICANCE_BENCHMARKS}
+    table = compare_to_benchmarks(port_returns, benchmarks, rf=rf)
 
-    return summary
+    spy = benchmarks["spy"].reindex(port_returns.index)
+    plot_bootstrap(run_bootstrap(port_returns, spy, rf=rf), output_path)
+    return table
 
 
 if __name__ == "__main__":
-    summary = run()
-    for k, v in summary.items():
-        print(f"{k:<25} {v}")
+    print(run().to_string())

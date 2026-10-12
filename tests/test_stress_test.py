@@ -127,3 +127,21 @@ def test_run_bootstrap_resamples_rf_with_returns():
     df = run_bootstrap(returns, returns, n_iterations=100, rf=rf)
 
     assert abs(df["port_sharpe"].mean() - observed) < 0.5
+
+
+def test_compare_to_benchmarks_scores_each_benchmark_on_portfolio_dates():
+    from backtest.bootstrap import compare_to_benchmarks
+
+    port, bench = make_pair_with_gap(gap=0.0007)
+    # Benchmark history starts a year before the portfolio, as in the pipeline.
+    early = pd.Series(0.05, index=pd.date_range(end=port.index[0], periods=251, freq="B")[:-1])
+    long_bench = pd.concat([early, bench])
+
+    table = compare_to_benchmarks(port, {"risk_parity": long_bench, "sixty_forty": port})
+
+    assert list(table.index) == ["risk_parity", "sixty_forty"]
+    expected = sharpe_difference_test(port, bench)
+    assert table.loc["risk_parity", "sharpe_diff"] == expected["d_observed"]
+    assert table.loc["risk_parity", "lw_p"] < 0.05
+    assert table.loc["risk_parity", "boot_p"] < 0.05
+    assert table.loc["sixty_forty", "sharpe_diff"] == 0.0
