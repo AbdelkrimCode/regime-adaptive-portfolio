@@ -1,0 +1,4 @@
+-r requirements.txt
+pytest==9.0.3
+jupyter==1.1.1
+ruff==0.17.0
