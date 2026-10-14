@@ -37,7 +37,7 @@ def test_concentration_guard_triggers_on_crash_regime_extreme_weights():
     extreme = np.zeros(len(ASSETS))
     extreme[ASSETS.index("IEF")] = 1.0
 
-    with patch.dict(switcher_mod.OPTIMIZER_MAP, {"Crash": lambda r: extreme}):
+    with patch.object(switcher_mod, "crash_weights", lambda r: extreme):
         weights = switcher_mod.compute_weights(regimes_df, returns, MOCK_RF)
 
     w = weights.loc[date].values
@@ -65,7 +65,7 @@ def test_concentration_guard_triggers_on_sideways_regime_extreme_weights():
     extreme = np.zeros(len(ASSETS))
     extreme[ASSETS.index("SPY")] = 1.0
 
-    with patch.dict(switcher_mod.OPTIMIZER_MAP, {"Sideways": lambda r: extreme}):
+    with patch.object(switcher_mod, "min_variance", lambda r: extreme):
         weights = switcher_mod.compute_weights(regimes_df, returns, MOCK_RF)
 
     w = weights.loc[date].values
@@ -95,7 +95,7 @@ def test_concentration_guard_does_not_trigger_on_diversified_weights():
 
     diversified = np.ones(len(ASSETS)) / len(ASSETS)
 
-    with patch.dict(switcher_mod.OPTIMIZER_MAP, {"Sideways": lambda r: diversified}):
+    with patch.object(switcher_mod, "min_variance", lambda r: diversified):
         weights = switcher_mod.compute_weights(regimes_df, returns, MOCK_RF)
 
     w = weights.loc[date].values
@@ -105,15 +105,15 @@ def test_concentration_guard_does_not_trigger_on_diversified_weights():
 def test_concentration_guard_fallback_helper_directly():
     all_assets = ["SPY", "TLT", "GLD", "EFA", "IEF", "QQQ", "LQD", "VNQ"]
 
-    crash_fallback = switcher_mod._concentration_guard_fallback("Crash", all_assets)
+    crash_fallback = switcher_mod._concentration_guard_fallback("safe_haven", all_assets)
     for a in switcher_mod.SAFE_HAVEN_ASSETS:
         assert crash_fallback[all_assets.index(a)] == pytest.approx(1.0 / len(switcher_mod.SAFE_HAVEN_ASSETS))
     for a in all_assets:
         if a not in switcher_mod.SAFE_HAVEN_ASSETS:
             assert crash_fallback[all_assets.index(a)] == 0.0
 
-    # Non-Crash regimes fall back to full-universe equal-weight.
-    bull_fallback = switcher_mod._concentration_guard_fallback("Bull", all_assets)
+    # Every other optimizer falls back to full-universe equal weight.
+    bull_fallback = switcher_mod._concentration_guard_fallback("max_sharpe", all_assets)
     assert np.allclose(bull_fallback, 1.0 / len(all_assets))
 
 def test_max_sharpe_receives_annual_rf(monkeypatch):
@@ -153,3 +153,60 @@ def test_compute_weights_uses_injected_rf_without_fetching(monkeypatch):
     switcher_mod.compute_weights(regimes_df, returns, rf)
 
     assert captured["rf"] == pytest.approx(0.0002 * switcher_mod.TRADING_DAYS)
+
+
+def make_regime_path(returns: pd.DataFrame, labels: list[str]) -> pd.DataFrame:
+    rows = []
+    for label in labels:
+        rows.append({f"p_{l.lower()}": float(l == label) for l in switcher_mod.LABELS} | {"regime": label})
+    return pd.DataFrame(rows, index=returns.index[-len(labels):])
+
+
+def test_mapping_routes_every_label_to_one_optimizer():
+    returns = make_returns()
+    regimes_df = make_regime_path(returns, ["Bull", "Crash", "Bear", "Sideways"] * 5)
+    only_min_var = {label: "min_variance" for label in switcher_mod.LABELS}
+
+    weights = switcher_mod.compute_weights(regimes_df, returns, MOCK_RF, mapping=only_min_var)
+
+    first = regimes_df.index[0]
+    expected = switcher_mod.optimizer_weights(returns.loc[:first], 0.0, ["min_variance"])["min_variance"]
+    assert np.allclose(weights.loc[first].values, expected, atol=1e-6)
+
+
+def test_weekly_refresh_ignores_regime_changes(monkeypatch):
+    returns = make_returns()
+    labels = ["Bull", "Crash"] * 15          # regime flips every day
+    regimes_df = make_regime_path(returns, labels)
+
+    calls = []
+    monkeypatch.setitem(switcher_mod.OPTIMIZERS, "min_variance",
+                        lambda r, rf: calls.append(r.index[-1]) or np.ones(r.shape[1]) / r.shape[1])
+    mapping = {label: "min_variance" for label in switcher_mod.LABELS}
+
+    switcher_mod.compute_weights(regimes_df, returns, MOCK_RF, mapping=mapping, refresh="weekly")
+
+    week_starts = regimes_df.index[switcher_mod.week_start_flags(regimes_df.index)]
+    expected = sorted(set([regimes_df.index[0]]) | set(week_starts))
+    assert calls == expected
+
+
+def test_regime_refresh_follows_regime_changes(monkeypatch):
+    returns = make_returns()
+    regimes_df = make_regime_path(returns, ["Bull"] * 5 + ["Crash"] * 5)
+
+    calls = []
+    monkeypatch.setitem(switcher_mod.OPTIMIZERS, "min_variance",
+                        lambda r, rf: calls.append(r.index[-1]) or np.ones(r.shape[1]) / r.shape[1])
+    mapping = {label: "min_variance" for label in switcher_mod.LABELS}
+
+    switcher_mod.compute_weights(regimes_df, returns, MOCK_RF, mapping=mapping, refresh="regime")
+
+    assert calls == [regimes_df.index[0], regimes_df.index[5]]
+
+
+def test_unknown_refresh_rule_raises():
+    returns = make_returns()
+    regimes_df = make_regime_path(returns, ["Bull"])
+    with pytest.raises(ValueError):
+        switcher_mod.compute_weights(regimes_df, returns, MOCK_RF, refresh="daily")
