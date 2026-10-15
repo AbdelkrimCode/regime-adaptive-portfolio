@@ -1,0 +1,4 @@
+,annualized_return,annualized_volatility,sharpe_ratio,max_drawdown,calmar_ratio,turnover
+C0,0.038,0.1052,0.0407,-0.1259,0.3017,0.0547
+C1,0.1083,0.088,0.7828,-0.0693,1.5628,0.0054
+H4,0.0367,0.1031,0.0275,-0.1311,0.28,0.0729
