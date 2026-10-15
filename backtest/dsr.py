@@ -40,13 +40,21 @@ def expected_max_sharpe(n_trials: int, sr_variance: float) -> float:
     ))
 
 
-def deflated_sharpe_ratio(returns: pd.Series, trial_sharpes: list[float], rf: pd.Series | None = None) -> dict:
+def deflated_sharpe_ratio(
+    returns: pd.Series,
+    trial_sharpes: list[float],
+    rf: pd.Series | None = None,
+    n_trials: int | None = None,
+) -> dict:
     """PSR of `returns` against the Sharpe a best-of-N search would find by luck.
 
-    trial_sharpes are the per-period Sharpe ratios of every variant tried, the chosen one included.
+    trial_sharpes are the per-period Sharpe ratios of the variants tried, the chosen one
+    included; their variance sets the threshold. n_trials overrides N when some trials
+    have no comparable Sharpe (default: len(trial_sharpes)).
     """
-    n = len(trial_sharpes)
-    sr0 = expected_max_sharpe(n, float(np.var(trial_sharpes, ddof=1)) if n > 1 else 0.0)
+    n = len(trial_sharpes) if n_trials is None else n_trials
+    variance = float(np.var(trial_sharpes, ddof=1)) if len(trial_sharpes) > 1 else 0.0
+    sr0 = expected_max_sharpe(n, variance)
     x = _excess(returns, rf)
     return {
         "n_trials": n,

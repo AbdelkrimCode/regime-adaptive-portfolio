@@ -33,3 +33,12 @@ def test_dsr_falls_as_more_trials_are_counted():
     few = deflated_sharpe_ratio(r, list(rng.normal(0, 0.01, 5)))
     many = deflated_sharpe_ratio(r, list(rng.normal(0, 0.01, 500)))
     assert 0 <= many["dsr"] < few["dsr"] <= 1
+
+
+def test_dsr_n_trials_override_raises_the_bar():
+    r = make_returns()
+    trials = list(np.random.default_rng(3).normal(0, 0.01, 10))
+    default = deflated_sharpe_ratio(r, trials)
+    more = deflated_sharpe_ratio(r, trials, n_trials=50)
+    assert more["n_trials"] == 50
+    assert more["sharpe_threshold"] > default["sharpe_threshold"]
