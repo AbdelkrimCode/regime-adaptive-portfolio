@@ -1,0 +1,9 @@
+{
+  "agreement_rate": 0.3982446516730664,
+  "n_changes": 31,
+  "never_within_horizon": 12,
+  "median_days": 1.0,
+  "mean_days": 12.210526315789474,
+  "share_within_5_days": 0.3870967741935484,
+  "share_within_21_days": 0.41935483870967744
+}
