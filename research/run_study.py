@@ -2,6 +2,7 @@
 
     python -m research.run_study --window dev       # development sample, 2006-2024
     python -m research.run_study --window holdout   # once, after data_end is extended
+    python -m research.run_backcast                 # 1996-2004 proxy universe (addendum)
 
 Every number written here comes from one call to run_study().
 """
@@ -34,6 +35,11 @@ CFG = load_config()
 TRADING_DAYS = CFG["market"]["trading_days"]
 DEV_END = pd.Timestamp("2024-12-31")
 HOLDOUT_START = pd.Timestamp("2025-01-02")
+# The backcast sample ends before the first day the development sample uses.
+BACKCAST_END = pd.Timestamp("2004-12-31")
+WINDOWS = ("dev", "holdout", "backcast")
+# Windows analysed in full (oracles, H1, H3, DSR); the holdout only gets C0, C1, H4 and the placebo.
+FULL_WINDOWS = ("dev", "backcast")
 COSTS_BP = (2, 5, 10)
 PRIMARY_BP = 2
 OUT_DIR = os.path.join(PROJECT_ROOT, "results", "study")
@@ -76,17 +82,25 @@ def run_study(
     n_bootstrap: int = 1000,
     prior_trials: list[float] | None = None,
 ) -> dict:
-    """Every cell and test of the pre-registration, for one sample window."""
-    if window not in ("dev", "holdout"):
-        raise ValueError("window must be 'dev' or 'holdout'")
+    """Every cell and test of the pre-registration, for one sample window.
+
+    dev and backcast are analysed in full and scored from their second regime day;
+    the holdout is scored from HOLDOUT_START only.
+    """
+    if window not in WINDOWS:
+        raise ValueError(f"window must be one of {WINDOWS}")
+    full = window in FULL_WINDOWS
     index = regimes.index
-    if window == "dev":
-        index = index[index <= DEV_END]
-        returns, features = returns.loc[:DEV_END], features.loc[:DEV_END]
+    if full:
+        end = DEV_END if window == "dev" else BACKCAST_END
+        index = index[index <= end]
+        if len(index) < 2:
+            raise ValueError(f"{window} window has no regime days on or before {end.date()}")
+        returns, features = returns.loc[:end], features.loc[:end]
     elif index.max() <= DEV_END:
         raise ValueError("holdout window needs data after 2024-12-31; extend data_end first")
     regimes = regimes.loc[index]
-    score = index[1:] if window == "dev" else index[index >= HOLDOUT_START]
+    score = index[1:] if full else index[index >= HOLDOUT_START]
     primary = PRIMARY_BP / 10_000
 
     targets = optimizer_targets(index, returns, rf)
@@ -105,14 +119,14 @@ def run_study(
         "C1": lambda c: cell(constant_posteriors(index), cost=c),
         "H4": lambda c: cell(post, cost=c, tgt=h4_targets, rets=h4_returns),
     }
-    if window == "dev":
+    if full:
         for name in sorted(OPTIMIZERS):
             investable[f"B_{name}"] = (lambda n: lambda c: cell(post, {l: n for l in LABELS}, cost=c))(name)
 
     results = {bp: {name: run(bp / 10_000) for name, run in investable.items()} for bp in COSTS_BP}
 
     oracle_maps = {}
-    if window == "dev":
+    if full:
         d1 = hindsight_posteriors(features, index)
         d1b = realized_vol_posteriors(returns["SPY"], index)
         books = {n: ret(results[PRIMARY_BP][f"B_{n}"]) for n in sorted(OPTIMIZERS)}
@@ -156,7 +170,7 @@ def run_study(
     lw = summary["H2"]["lw_C0_vs_C1"]["p_value"]
     summary["H2"]["supported"] = bool(lw < 0.05 and summary["placebo"][PRIMARY_BP]["p_value_vs_C0"] < 0.05)
 
-    if window == "dev":
+    if full:
         prior = prior_trial_sharpes() if prior_trials is None else prior_trials
         study = [sr["C0"], sr["C1"]] + [sr[f"B_{n}"] for n in sorted(OPTIMIZERS)]
         trials = [s / np.sqrt(TRADING_DAYS) for s in prior + study]
@@ -192,27 +206,37 @@ def write(summary: dict, out_dir: str) -> None:
     print(f"Results written to {out_dir}")
 
 
-def main() -> None:
+def run(window: str) -> dict:
+    """Load the active config's data, run the study for `window` and write the results."""
     from data.fetch import RAW_PATH
     from data.risk_free import RF_PATH, fetch_risk_free
     from models.hmm import load_features, walk_forward_regimes
 
-    parser = argparse.ArgumentParser(description="Detection vs response study")
-    parser.add_argument("--window", choices=["dev", "holdout"], required=True)
-    args = parser.parse_args()
-
     data_end = pd.Timestamp(CFG["evaluation"]["data_end"])
-    if args.window == "dev" and data_end > DEV_END:
+    proxies = bool(CFG.get("universe"))
+    if window == "dev" and data_end > DEV_END:
         raise SystemExit("dev run with data_end after 2024-12-31 would load holdout data; refusing")
+    if window == "backcast" and (data_end > BACKCAST_END or not proxies):
+        raise SystemExit("backcast needs the backcast config (proxy universe, data_end 2004-12-31); "
+                         "use python -m research.run_backcast")
+    if window != "backcast" and proxies:
+        raise SystemExit("the active config is the backcast proxy universe; only --window backcast fits it")
 
     returns = pd.read_parquet(CFG["paths"]["returns"])
     rf = fetch_risk_free()
     features = load_features()
     regimes = walk_forward_regimes(features)
 
-    summary = run_study(returns, rf, features, regimes, window=args.window)
+    summary = run_study(returns, rf, features, regimes, window=window)
     summary["data_sha256"] = {"prices": file_sha256(RAW_PATH), "risk_free": file_sha256(RF_PATH)}
-    write(summary, os.path.join(OUT_DIR, args.window))
+    write(summary, os.path.join(OUT_DIR, window))
+    return summary
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Detection vs response study")
+    parser.add_argument("--window", choices=list(WINDOWS), required=True)
+    run(parser.parse_args().window)
 
 
 if __name__ == "__main__":

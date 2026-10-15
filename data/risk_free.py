@@ -7,7 +7,7 @@ from data.fetch import inclusive_end
 
 _CFG = load_config()
 RF_TICKER = "^IRX"
-RF_PATH = os.path.join(os.path.dirname(__file__), "processed", "risk_free.parquet")
+RF_PATH = _CFG["paths"].get("risk_free", os.path.join(os.path.dirname(__file__), "processed", "risk_free.parquet"))
 
 
 def fetch_risk_free(

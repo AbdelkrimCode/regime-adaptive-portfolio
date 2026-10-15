@@ -1,0 +1,76 @@
+# Backcast configuration (docs/preregistration_addendum_backcast.md).
+# Same model, optimizers, costs and tests as config.yaml. Only the universe, the
+# dates and the file locations differ. Gold is dropped: no daily gold series
+# exists before 2000, so the safe havens are IEF and TLT.
+
+# Asset name used in the code -> ticker downloaded for it (index funds and one index).
+universe:
+  SPY: VFINX    # Vanguard 500 Index
+  QQQ: ^NDX     # Nasdaq-100 index, price only
+  TLT: VUSTX    # Vanguard Long-Term Treasury
+  IEF: VFITX    # Vanguard Intermediate-Term Treasury
+  LQD: VFICX    # Vanguard Intermediate-Term Investment-Grade
+  EFA: VGTSX    # Vanguard Total International Stock Index
+  VNQ: VGSIX    # Vanguard REIT Index
+
+hmm:
+  n_states: 4
+  n_iter: 2000
+  n_init: 10
+  random_state: 42
+  min_train_days: 252
+  retrain_frequency: "QS"
+  n_jobs: 1
+
+features:
+  vol_window: 21
+  corr_window: 63
+
+backtest:
+  initial_capital: 1.0
+  transaction_cost: 0.0002
+
+optimizer:
+  safe_haven_assets: ["IEF", "TLT"]
+  max_position: 0.60
+
+paths:
+  raw_prices: "data/backcast/raw/prices.parquet"
+  risk_free: "data/backcast/processed/risk_free.parquet"
+  features: "data/backcast/processed/features.parquet"
+  returns: "data/backcast/processed/returns.parquet"
+  model: "data/backcast/hmm_model.joblib"
+  regimes: "data/backcast/regimes.parquet"
+  backtest_results: "data/backcast/backtest_results.parquet"
+  charts: "results/backcast/figures/charts.png"
+  bootstrap: "results/backcast/figures/bootstrap.png"
+  state_selection: "results/backcast/figures/state_selection.png"
+  sensitivity_results: "results/backcast/sensitivity_results.csv"
+  walk_forward_audit: "results/backcast/walk_forward_audit.csv"
+  ablation_results: "results/backcast/ablation_results.csv"
+
+evaluation:
+  data_start: "1996-05-01"
+  train_end: "2001-12-31"
+  test_start: "2002-01-01"
+  data_end: "2004-12-31"
+
+market:
+  risk_free_rate: 0.04
+  trading_days: 252
+
+subperiods:
+  "Dot-com bust (2000-2002)":
+    start: "2000-03-01"
+    end:   "2002-12-31"
+
+stress_test:
+  n_simulations: 1000
+  confidence: 0.95
+  vix_threshold: 30.0
+  block_size: 20
+
+bootstrap:
+  block_length: 20
+  n_iterations: 1000
+  random_state: 42

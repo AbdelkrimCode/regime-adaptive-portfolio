@@ -88,3 +88,7 @@ Run once, after every Section 5 result on the development sample is committed:
 ## Deviations
 
 None yet.
+
+## Addenda
+
+- `docs/preregistration_addendum_backcast.md` (tag `prereg-v2`): the same study on a 1996-2004 proxy universe, as a second out-of-sample test.
