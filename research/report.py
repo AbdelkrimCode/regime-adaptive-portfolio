@@ -1,10 +1,11 @@
-"""Figures and detection diagnostics for the development-sample results (exploratory).
+"""Figures and detection diagnostics for a fully analysed window (exploratory).
 
-    python -m research.report
+    python -m research.report                    # development sample
+    python -m research.run_backcast --report     # backcast, under its own config
 
 Rebuilds the cells with the same building blocks as research/run_study.py, checks
-that their Sharpe ratios match results/study/dev/summary.json, then writes figures
-and tables to results/study/dev/. Nothing here changes a pre-registered result.
+that their Sharpe ratios match results/study/<window>/summary.json, then writes
+figures and tables next to it. Nothing here changes a pre-registered result.
 """
 import json
 import os
@@ -17,11 +18,16 @@ from research.books import constant_posteriors, optimizer_targets, posteriors_of
 from research.descriptive import agreement_rate, confusion, delay_summary, detection_delays
 from research.h4 import correlation_aware_targets, stock_bond_correlation, with_cash
 from research.oracles import argmax_labels, hindsight_posteriors, realized_vol_posteriors
-from research.run_study import DEV_END, OUT_DIR, PRIMARY_BP
+from research.run_study import BACKCAST_END, DEV_END, OUT_DIR, PRIMARY_BP
 from research.stats import annual_sharpe
 
 CFG = load_config()
-DEV_DIR = os.path.join(OUT_DIR, "dev")
+WINDOW_END = {"dev": DEV_END, "backcast": BACKCAST_END}
+# Stress period shaded on the wealth chart, chosen by what each sample is known for.
+STRESS = {
+    "dev": ("2022-01-01", "2022-12-31", "Shaded: 2022, when stocks and bonds fell together"),
+    "backcast": ("2000-03-24", "2002-10-09", "Shaded: the 2000-2002 equity bear market"),
+}
 
 # Validated categorical slots (light mode) and neutral inks.
 BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
@@ -39,16 +45,17 @@ CELL_NAMES = {
 INVESTABLE = {"C0", "C1", "H4"}
 
 
-def rebuild_cells(summary: dict) -> tuple[dict[str, pd.Series], pd.Series, pd.Series]:
+def rebuild_cells(summary: dict, window: str = "dev") -> tuple[dict[str, pd.Series], pd.Series, pd.Series]:
     """Daily returns of every cell at the primary cost, plus causal and hindsight labels."""
     from data.risk_free import fetch_risk_free
     from models.hmm import load_features, walk_forward_regimes
 
-    returns = pd.read_parquet(CFG["paths"]["returns"]).loc[:DEV_END]
+    end = WINDOW_END[window]
+    returns = pd.read_parquet(CFG["paths"]["returns"]).loc[:end]
     rf = fetch_risk_free()
-    features = load_features().loc[:DEV_END]
+    features = load_features().loc[:end]
     regimes = walk_forward_regimes(features)
-    index = regimes.index[regimes.index <= DEV_END]
+    index = regimes.index[regimes.index <= end]
     score = index[1:]
     cost = PRIMARY_BP / 10_000
 
@@ -101,12 +108,17 @@ def plot_decomposition(summary: dict, path: str) -> None:
         oracle = c not in INVESTABLE
         ax.barh(i, v, height=0.55, color=GRAY if oracle else BLUE,
                 hatch="//" if oracle else None, edgecolor="white", linewidth=0)
-        ax.text(v + 0.01, i, f"{v:.2f}", va="center", fontsize=9, color=INK)
+        # Labels sit beyond the bar end, on whichever side of zero the bar is.
+        ax.text(v + (0.01 if v >= 0 else -0.01), i, f"{v:.2f}", va="center",
+                ha="left" if v >= 0 else "right", fontsize=9, color=INK)
     ax.axvline(cells["C1"]["sharpe_ratio"], color=INK_2, linewidth=1, linestyle=":")
+    ax.axvline(0, color=GRID, linewidth=1)
     ax.set_yticks(range(len(order)), [CELL_NAMES[c] for c in order], color=INK)
     ax.invert_yaxis()
-    ax.set_xlim(0, max(values) * 1.15)
-    ax.set_xlabel("Sharpe ratio, 2006-2024, 2 bp costs", color=INK_2, fontsize=9)
+    span = max(max(values), 0) - min(min(values), 0)
+    ax.set_xlim(min(min(values), 0) - 0.15 * span * (min(values) < 0), max(max(values), 0) + 0.15 * span)
+    period = f"{summary['score_start'][:4]}-{summary['score_end'][:4]}"
+    ax.set_xlabel(f"Sharpe ratio, {period}, {PRIMARY_BP} bp costs", color=INK_2, fontsize=9)
     ax.set_title("Hatched gray bars use future data and are not investable",
                  loc="left", fontsize=9, color=INK_2)
     _style(ax)
@@ -124,10 +136,12 @@ def plot_placebo(summary: dict, path: str) -> None:
     fig, ax = plt.subplots(figsize=(7.5, 3.4))
     ax.hist(placebo, bins=25, color=GRAY, edgecolor="white", linewidth=1)
     top = ax.get_ylim()[1]
-    # The two marked values can be almost equal, so one label goes left, the other right.
-    for name, color, style, height, align, nudge in (
-        ("C1", ORANGE, "--", 0.95, "right", -0.006), ("C0", BLUE, "-", 0.80, "left", 0.006),
-    ):
+    # The two marked values can be almost equal: the lower one is labeled on its left,
+    # the higher one on its right, so the labels never cross the other line.
+    marks = (("C1", ORANGE, "--", 0.95), ("C0", BLUE, "-", 0.80))
+    lower = min(("C1", "C0"), key=lambda n: cells[n]["sharpe_ratio"])
+    for name, color, style, height in marks:
+        align, nudge = ("right", -0.006) if name == lower else ("left", 0.006)
         v = cells[name]["sharpe_ratio"]
         ax.axvline(v, color=color, linewidth=2, linestyle=style)
         ax.text(v + nudge, top * height, f"{CELL_NAMES[name]} {v:.2f}", color=INK,
@@ -144,7 +158,7 @@ def plot_placebo(summary: dict, path: str) -> None:
     plt.close(fig)
 
 
-def plot_wealth(cells: dict[str, pd.Series], path: str) -> None:
+def plot_wealth(cells: dict[str, pd.Series], path: str, window: str = "dev") -> None:
     """Growth of 1 for the strategy, the static blend and the cash rule, direct-labeled."""
     import matplotlib.pyplot as plt
 
@@ -164,9 +178,10 @@ def plot_wealth(cells: dict[str, pd.Series], path: str) -> None:
         placed.append(label_y)
         ax.annotate(f" {CELL_NAMES[name]}", (x, y), xytext=(x, label_y), va="center",
                     fontsize=9, color=INK, annotation_clip=False)
-    ax.axvspan(pd.Timestamp("2022-01-01"), pd.Timestamp("2022-12-31"), color=GRID, alpha=0.6, linewidth=0)
+    start, end, title = STRESS[window]
+    ax.axvspan(pd.Timestamp(start), pd.Timestamp(end), color=GRID, alpha=0.6, linewidth=0)
     ax.set_ylabel("Growth of 1", color=INK_2, fontsize=9)
-    ax.set_title("Shaded: 2022, when stocks and bonds fell together", loc="left", fontsize=9, color=INK_2)
+    ax.set_title(title, loc="left", fontsize=9, color=INK_2)
     _style(ax)
     ax.grid(axis="y", color=GRID, linewidth=0.8)
     ax.grid(axis="x", visible=False)
@@ -204,26 +219,33 @@ def plot_confusion(table: pd.DataFrame, path: str) -> None:
     plt.close(fig)
 
 
-def main() -> None:
-    with open(os.path.join(DEV_DIR, "summary.json")) as f:
+def main(window: str = "dev") -> None:
+    if window not in WINDOW_END:
+        raise ValueError(f"window must be one of {list(WINDOW_END)}")
+    if bool(CFG.get("universe")) != (window == "backcast"):
+        raise SystemExit(f"the active config does not match the {window} window")
+    out = os.path.join(OUT_DIR, window)
+    with open(os.path.join(out, "summary.json")) as f:
         summary = json.load(f)
-    figures = os.path.join(DEV_DIR, "figures")
+    if summary["window"] != window:
+        raise SystemExit(f"{out}/summary.json is for window {summary['window']}, not {window}")
+    figures = os.path.join(out, "figures")
     os.makedirs(figures, exist_ok=True)
 
-    cells, real, hind = rebuild_cells(summary)
+    cells, real, hind = rebuild_cells(summary, window)
     table = confusion(real, hind)
     delays = detection_delays(real, hind)
     diagnostics = {"agreement_rate": agreement_rate(real, hind), **delay_summary(delays)}
 
-    table.round(1).to_csv(os.path.join(DEV_DIR, "detection_confusion.csv"))
-    delays.to_csv(os.path.join(DEV_DIR, "detection_delays.csv"))
-    with open(os.path.join(DEV_DIR, "detection_diagnostics.json"), "w") as f:
+    table.round(1).to_csv(os.path.join(out, "detection_confusion.csv"))
+    delays.to_csv(os.path.join(out, "detection_delays.csv"))
+    with open(os.path.join(out, "detection_diagnostics.json"), "w") as f:
         json.dump(diagnostics, f, indent=2)
-    pd.DataFrame(cells).to_parquet(os.path.join(DEV_DIR, "daily_returns.parquet"))
+    pd.DataFrame(cells).to_parquet(os.path.join(out, "daily_returns.parquet"))
 
     plot_decomposition(summary, os.path.join(figures, "decomposition.png"))
     plot_placebo(summary, os.path.join(figures, "placebo.png"))
-    plot_wealth(cells, os.path.join(figures, "wealth.png"))
+    plot_wealth(cells, os.path.join(figures, "wealth.png"), window)
     plot_confusion(table, os.path.join(figures, "detection_confusion.png"))
     print(json.dumps(diagnostics, indent=2))
     print(f"Figures written to {figures}")

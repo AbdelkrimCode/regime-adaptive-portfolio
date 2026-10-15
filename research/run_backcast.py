@@ -1,11 +1,13 @@
 """Backcast: the frozen study on a 1996-2004 proxy universe (docs/preregistration_addendum_backcast.md).
 
-    python -m research.run_backcast
+    python -m research.run_backcast            # the one-shot run
+    python -m research.run_backcast --report   # figures and detection diagnostics afterwards
 
 Selects config_backcast.yaml before anything reads a config, so every data file,
 model and result goes under data/backcast/ and results/study/backcast/. The
 development and holdout files are never read or written.
 """
+import argparse
 import os
 import sys
 
@@ -19,13 +21,18 @@ def loaded_project_modules() -> list[str]:
                   if m.split(".")[0] in PACKAGES and "." in m and m != __name__)
 
 
-def main() -> None:
+def main(report: bool = False) -> None:
     # Modules read the config when first imported, so none may be loaded yet.
     stale = loaded_project_modules()
     if stale:
         raise SystemExit(f"modules already loaded with another config: {stale}")
     from config import CONFIG_ENV
     os.environ[CONFIG_ENV] = BACKCAST_CONFIG
+
+    if report:
+        from research.report import main as write_report
+        write_report("backcast")
+        return
 
     from data.fetch import fetch_prices
     from data.process import process_and_save
@@ -41,4 +48,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Backcast on the 1996-2004 proxy universe")
+    parser.add_argument("--report", action="store_true",
+                        help="write figures and detection diagnostics for an existing run")
+    main(parser.parse_args().report)
