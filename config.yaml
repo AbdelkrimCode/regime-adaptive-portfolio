@@ -36,7 +36,7 @@ evaluation:
   data_start: "2005-01-01"
   train_end: "2018-12-31"
   test_start: "2019-01-01"
-  data_end: "2024-12-31"
+  data_end: "2026-10-14"
 
 market:
   risk_free_rate: 0.04
